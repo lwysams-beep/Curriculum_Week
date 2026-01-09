@@ -156,7 +156,7 @@ const generateMockSchedules = () => {
 
 const TEACHER_SCHEDULES = generateMockSchedules();
 
-// --- P1 - P3 DATA ---
+// --- P1 - P3 DATA (Standard JS Objects) ---
 const P1_DATA = [
   {
     day: 'Day 1', date: '1月19日 (一)', theme: '自理意識覺醒',
@@ -464,7 +464,7 @@ const OutingMap = ({ navigate }: { navigate: (day: string) => void }) => {
 const Dashboard = ({ changeTab }: { changeTab: (t: string) => void }) => (
   <div className="space-y-6 animate-fadeIn">
     <header className="mb-6">
-      <h2 className="text-3xl font-bold text-slate-800">課程指揮中心 V3.0</h2>
+      <h2 className="text-3xl font-bold text-slate-800">課程指揮中心 正覺蓮社學校 | V3.0 Final</h2>
       <p className="text-slate-500">整合 5C+、STREAM、價值觀教育及 AI 科技</p>
     </header>
 
@@ -520,7 +520,11 @@ const Dashboard = ({ changeTab }: { changeTab: (t: string) => void }) => (
 // 2.5 Master Schedule View
 const MasterSchedule = ({ selectedLevel, selectedDay, setLevel, setDay }: any) => {
   const dataMap: any = { 'P1': P1_DATA, 'P2': P2_DATA, 'P3': P3_DATA };
-  const currentData = dataMap[selectedLevel].find((d: any) => d.day === selectedDay);
+  
+  // Safety check: Optional chaining and fallback
+  const currentData = dataMap[selectedLevel]?.find((d: any) => d.day === selectedDay);
+
+  if (!currentData) return <div className="p-8 text-center text-slate-500">無法載入資料，請重試。</div>;
 
   return (
     <div className="h-full flex flex-col animate-fadeIn">
@@ -552,7 +556,10 @@ const MasterSchedule = ({ selectedLevel, selectedDay, setLevel, setDay }: any) =
             );
             
             const lessonIdx = parseInt(slot.id.replace('L',''));
-            const lesson = currentData.lessons[lessonIdx];
+            
+            // --- CRITICAL FIX: Force cast to 'any' to bypass TS7053 error ---
+            const lessons: any = currentData.lessons;
+            const lesson = lessons[lessonIdx];
             
             return (
               <div key={slot.id} className="p-4 flex gap-4 hover:bg-slate-50 transition-colors group">
@@ -697,206 +704,157 @@ const StaffingSystem = () => {
   };
 
   const toggleLevel = (lvl: string) => setSelectedLevels(prev => prev.includes(lvl) ? prev.filter(l => l !== lvl) : [...prev, lvl]);
-  const toggleExcludedTeacher = (name: string) => setExcludedTeachers(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
-  const handleDragStart = (e: React.DragEvent, teacherName: string) => e.dataTransfer.setData('text/plain', teacherName);
   
-  const handleDrop = (e: React.DragEvent, classId: string, period: number) => {
-    e.preventDefault();
-    const teacherName = e.dataTransfer.getData('text/plain');
-    if (!teacherName) return;
+  const toggleExcludedTeacher = (t: string) => setExcludedTeachers(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
-    setSchedule(prev => {
-      const daySchedule = [...prev[currentDay]];
-      const slotIndex = daySchedule.findIndex(s => s.classId === classId && s.period === period);
-      if (slotIndex >= 0) {
-        const slot = daySchedule[slotIndex];
-        if (!slot.teachers.includes(teacherName)) {
-           if (slot.teachers.length < slot.capacity) {
-             daySchedule[slotIndex] = { ...slot, teachers: [...slot.teachers, teacherName] };
-           } else {
-             alert(`此節人數上限為 ${slot.capacity} 人。請先點擊右上角數字增加人數。`);
-           }
-        }
-      }
-      return { ...prev, [currentDay]: daySchedule };
+  // Calculations for charts
+  const teacherLoad = useMemo(() => {
+    const counts: {[key:string]: number} = {};
+    Object.values(schedule).forEach(dayList => {
+       dayList.forEach(slot => {
+          slot.teachers.forEach(t => {
+             counts[t] = (counts[t] || 0) + 1;
+          });
+       });
     });
-  };
-
-  const handleRemoveTeacher = (classId: string, period: number, teacherName: string) => {
-    setSchedule(prev => {
-      const daySchedule = [...prev[currentDay]];
-      const slotIndex = daySchedule.findIndex(s => s.classId === classId && s.period === period);
-      if (slotIndex >= 0) {
-        daySchedule[slotIndex] = {
-          ...daySchedule[slotIndex],
-          teachers: daySchedule[slotIndex].teachers.filter(t => t !== teacherName)
-        };
-      }
-      return { ...prev, [currentDay]: daySchedule };
-    });
-  };
-
-  const stats = useMemo(() => {
-    const currentDayData = schedule[currentDay] || [];
-    const assignedCounts: {[key: string]: number} = {};
-    MASTER_TEACHER_LIST.forEach(name => assignedCounts[name] = 0);
-
-    currentDayData.forEach(slot => {
-      slot.teachers.forEach(tName => assignedCounts[tName] = (assignedCounts[tName] || 0) + 1);
-    });
-
-    const chartData = MASTER_TEACHER_LIST
-      .filter(name => !excludedTeachers.includes(name))
-      .map(name => {
-        let original = 0;
-        const dailySchedule = TEACHER_SCHEDULES[name]?.[currentDay];
-        if (dailySchedule) original = Object.keys(dailySchedule).length;
-        
-        return { name, original, assigned: assignedCounts[name] || 0 };
-      })
-      .sort((a, b) => (b.assigned - b.original) - (a.assigned - a.original));
-      
-    return { chartData };
-  }, [schedule, currentDay, excludedTeachers]);
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a,b) => b.count - a.count)
+      .slice(0, 10);
+  }, [schedule]);
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 overflow-hidden animate-fadeIn">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center z-20 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-600 text-white p-2 rounded-lg"><Users size={20}/></div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">智能人手編配系統</h1>
-            <div className="text-xs text-slate-500">已載入: 全校教師名單 (60+)</div>
-          </div>
-        </div>
+    <div className="h-full flex flex-col animate-fadeIn overflow-hidden">
+      {/* Top Controls */}
+      <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm z-10">
         <div className="flex items-center gap-4">
+           <button onClick={() => setShowConfig(!showConfig)} className={`p-2 rounded-lg border ${showConfig ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}>
+             <Settings size={20} />
+           </button>
            <div className="flex bg-slate-100 p-1 rounded-lg">
-            {STAFFING_DAYS.map(day => (
-              <button key={day} onClick={() => setCurrentDay(day)} className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${currentDay === day ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{day}</button>
-            ))}
-          </div>
-          <div className="h-6 w-px bg-slate-300"></div>
-          <button onClick={() => setShowConfig(!showConfig)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors border ${showConfig ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-            <Settings size={16} /> 設定精靈 {showConfig ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-          </button>
-          <button onClick={handleClearDay} className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"><Trash2 size={16} /> 清空當日</button>
-        </div>
-      </div>
-
-      {/* Config Panel */}
-      <div className={`bg-white border-b border-slate-200 shadow-md transition-all overflow-hidden ${showConfig ? 'max-h-[30rem]' : 'max-h-0'}`}>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="space-y-3 border-r border-slate-100 pr-4">
-            <h3 className="font-bold text-slate-700 flex items-center gap-2"><span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span> 選擇安排級別</h3>
-            <p className="text-xs text-slate-500">P5-P6 由其他老師負責，請取消勾選。</p>
-            <div className="grid grid-cols-3 gap-2">
-              {STAFFING_LEVELS.map(lvl => (
-                <button key={lvl} onClick={() => toggleLevel(lvl)} className={`flex items-center gap-2 p-2 rounded border text-sm font-bold transition-all ${selectedLevels.includes(lvl) ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                  {selectedLevels.includes(lvl) ? <CheckSquare size={16}/> : <Square size={16}/>}{lvl}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-3 border-r border-slate-100 pr-4">
-            <h3 className="font-bold text-slate-700 flex items-center gap-2"><span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span> 剔除不可編配老師</h3>
-            <p className="text-xs text-slate-500">全校名單已整合 (含班主任/科任/其他)</p>
-            <div className="h-60 overflow-y-auto border border-slate-200 rounded p-2 bg-slate-50 grid grid-cols-2 gap-1 custom-scrollbar">
-              {MASTER_TEACHER_LIST.map(name => (
-                <label key={name} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-slate-100 p-1 rounded">
-                  <input type="checkbox" checked={excludedTeachers.includes(name)} onChange={() => toggleExcludedTeacher(name)} className="rounded text-indigo-600 focus:ring-indigo-500" />
-                  <span className={excludedTeachers.includes(name) ? 'text-slate-400 line-through' : 'text-slate-700'}>{name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-3">
-            <h3 className="font-bold text-slate-700 flex items-center gap-2"><span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span> 智能分配動作</h3>
-            <div className="bg-slate-50 p-4 rounded border border-slate-200 space-y-4">
-              <p className="text-xs text-slate-500">
-                系統將根據每節的「人數需求」自動填補空缺。<br/>
-                優先順序：科任老師 {'>'} 班主任
-              </p>
-              <button onClick={handleAutoAssign} className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-2 rounded-lg font-bold hover:bg-emerald-700 shadow-sm"><RefreshCw size={18}/> 執行智能一鍵編配</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid & Stats */}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
-           <div className="grid grid-cols-[80px_repeat(6,1fr)] gap-3 min-w-[800px]">
-              <div className="sticky top-0 bg-slate-50 z-10 font-bold text-slate-400 text-right pr-4 py-2">班別</div>
-              {STAFFING_PERIODS.map(p => <div key={p} className="sticky top-0 bg-slate-50 z-10 text-center font-bold text-slate-600 py-2 border-b-2 border-indigo-100">第 {p} 節</div>)}
-              {ALL_CLASSES.filter(c => selectedLevels.includes('P' + c.charAt(0))).map(cls => (
-                <React.Fragment key={cls}>
-                  <div className="flex items-center justify-end pr-4 font-bold text-slate-700">{cls}</div>
-                  {STAFFING_PERIODS.map(p => {
-                    const slotData = schedule[currentDay]?.find(s => s.classId === cls && s.period === p);
-                    const teachers = slotData?.teachers || [];
-                    const capacity = slotData?.capacity || 1;
-                    const needed = capacity - teachers.length;
-                    
-                    return (
-                      <div 
-                        key={`${cls}-${p}`} 
-                        onDragOver={(e) => e.preventDefault()} 
-                        onDrop={(e) => handleDrop(e, cls, p)} 
-                        className={`min-h-[70px] rounded-lg border-2 border-dashed transition-all p-2 flex flex-col gap-1 relative 
-                          ${teachers.length === 0 ? 'border-slate-200 bg-white' : ''} 
-                          ${teachers.length === capacity ? 'border-emerald-200 bg-emerald-50/30' : (teachers.length > 0 ? 'border-amber-200 bg-amber-50/20' : '')}
-                        `}
-                      >
-                         {/* Capacity Toggle & Status */}
-                         <button 
-                           onClick={() => toggleSlotCapacity(cls, p)}
-                           className={`absolute top-0 right-0 p-1.5 text-[10px] font-bold z-10 hover:bg-black/10 rounded-bl ${capacity === 1 ? 'text-slate-400' : 'text-white bg-indigo-600'}`}
-                           title="點擊切換人數上限 (1/2人)"
-                         >
-                           [{capacity}]
-                         </button>
-
-                         {teachers.length < capacity && <div className="text-[10px] text-amber-400 text-center mt-3">欠 {needed} 人</div>}
-                         
-                         {teachers.map(t => (
-                           <div key={t} className="bg-white border shadow-sm rounded px-2 py-1 text-xs font-bold text-slate-700 flex justify-between items-center cursor-grab active:cursor-grabbing relative z-20" draggable onDragStart={(e) => handleDragStart(e, t)}>
-                             <span className="truncate">{t}</span>
-                             <button onClick={() => handleRemoveTeacher(cls, p, t)} className="text-slate-300 hover:text-red-500 ml-1"><X size={10}/></button>
-                           </div>
-                         ))}
-                      </div>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+             {STAFFING_DAYS.map(d => (
+               <button key={d} onClick={() => setCurrentDay(d)} className={`px-4 py-1.5 text-sm font-bold rounded ${currentDay === d ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>
+                 {d}
+               </button>
+             ))}
            </div>
         </div>
-        <div className="w-80 bg-white border-l border-slate-200 flex flex-col shadow-xl z-10 overflow-hidden">
-          <div className="h-1/2 flex flex-col border-b border-slate-200 shrink-0">
-            <div className="p-3 bg-slate-50 border-b border-slate-100 font-bold text-sm text-slate-700 shrink-0">工作量統計 ({currentDay})</div>
-            <div className="flex-1 p-2 min-h-0">
-               <ResponsiveContainer width="100%" height="100%">
-                  <RechartBar data={stats.chartData} layout="vertical" margin={{ top: 5, right: 30, left: 0, bottom: 5 }} barCategoryGap={2}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={50} tick={{fontSize: 10}} />
-                    <Tooltip />
-                    <Bar dataKey="original" fill="#cbd5e1" radius={[0, 2, 2, 0]} barSize={8} />
-                    <Bar dataKey="assigned" radius={[0, 2, 2, 0]} barSize={8}>
-                      {stats.chartData.map((e, i) => <Cell key={i} fill={e.assigned > e.original ? '#ef4444' : e.assigned < e.original ? '#f59e0b' : '#10b981'} />)}
-                    </Bar>
-                  </RechartBar>
-               </ResponsiveContainer>
-            </div>
+        <div className="flex gap-2">
+          <button onClick={handleClearDay} className="flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-bold transition-colors">
+            <Trash2 size={16}/> 清空
+          </button>
+          <button onClick={handleAutoAssign} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md transition-all active:scale-95">
+            <Cpu size={18}/> AI 智能編配
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Config Sidebar */}
+        {showConfig && (
+          <div className="w-64 bg-slate-50 border-r overflow-y-auto p-4 flex-shrink-0 transition-all">
+             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Filter size={16}/> 編配篩選</h3>
+             
+             <div className="mb-6">
+               <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">年級選擇</label>
+               <div className="flex flex-wrap gap-2">
+                 {STAFFING_LEVELS.map(lvl => (
+                   <button 
+                     key={lvl} 
+                     onClick={() => toggleLevel(lvl)}
+                     className={`px-3 py-1 text-xs rounded border ${selectedLevels.includes(lvl) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600'}`}
+                   >
+                     {lvl}
+                   </button>
+                 ))}
+               </div>
+             </div>
+
+             <div className="mb-6">
+               <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">預設人手/班</label>
+               <div className="flex items-center gap-2 bg-white p-2 rounded border">
+                 <UserMinus size={16} className="text-slate-400"/>
+                 <input 
+                   type="range" min="1" max="2" step="1" 
+                   value={defaultCapacity} onChange={(e) => setDefaultCapacity(parseInt(e.target.value))}
+                   className="flex-1"
+                 />
+                 <span className="font-bold text-indigo-600">{defaultCapacity}</span>
+               </div>
+             </div>
+
+             <div className="mb-6">
+               <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">排除教師 (請假/公務)</label>
+               <div className="h-48 overflow-y-auto bg-white border rounded p-2 space-y-1">
+                 {MASTER_TEACHER_LIST.map(t => (
+                   <div key={t} onClick={() => toggleExcludedTeacher(t)} className={`flex items-center gap-2 text-sm p-1 rounded cursor-pointer ${excludedTeachers.includes(t) ? 'bg-red-50 text-red-600 line-through' : 'hover:bg-slate-50'}`}>
+                     <div className={`w-3 h-3 rounded-full border ${excludedTeachers.includes(t) ? 'bg-red-500 border-red-500' : 'border-slate-300'}`}></div>
+                     {t}
+                   </div>
+                 ))}
+               </div>
+             </div>
+
+             <div className="border-t pt-4">
+               <h4 className="font-bold text-xs text-slate-500 mb-2">實時工作量 Top 5</h4>
+               {teacherLoad.slice(0,5).map((t, i) => (
+                 <div key={t.name} className="flex justify-between text-xs mb-1">
+                   <span>{i+1}. {t.name}</span>
+                   <span className="font-bold">{t.count} 節</span>
+                 </div>
+               ))}
+             </div>
           </div>
-          <div className="flex-1 flex flex-col bg-slate-50 min-h-0">
-             <div className="p-3 bg-white border-b border-slate-200 font-bold text-sm text-slate-700 shrink-0">可用教師池</div>
-             <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-               {stats.chartData.map(t => (
-                 <div key={t.name} draggable onDragStart={(e) => handleDragStart(e, t.name)} className="bg-white border p-2 rounded flex justify-between items-center text-xs cursor-grab shadow-sm hover:shadow-md transition-shadow">
-                   <span className="font-bold">{t.name}</span>
-                   <span className={`px-1.5 py-0.5 rounded ${t.original - t.assigned > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>餘 {t.original - t.assigned}</span>
+        )}
+
+        {/* Main Grid */}
+        <div className="flex-1 overflow-auto bg-slate-100 p-4">
+          <div className="min-w-[800px] bg-white rounded-lg shadow-sm border border-slate-200">
+             {/* Grid Header */}
+             <div className="grid grid-cols-[80px_repeat(6,1fr)] bg-slate-50 border-b sticky top-0 z-10">
+               <div className="p-3 text-center text-xs font-bold text-slate-500 uppercase border-r flex items-center justify-center">班別</div>
+               {STAFFING_PERIODS.map(p => (
+                 <div key={p} className="p-3 text-center text-xs font-bold text-slate-700 border-r last:border-r-0">
+                   第 {p} 節
+                 </div>
+               ))}
+             </div>
+
+             {/* Grid Body */}
+             <div className="divide-y">
+               {ALL_CLASSES.filter(c => selectedLevels.includes('P'+c.charAt(0))).map(cls => (
+                 <div key={cls} className="grid grid-cols-[80px_repeat(6,1fr)] hover:bg-slate-50 transition-colors">
+                   <div className="p-3 font-bold text-slate-700 border-r flex items-center justify-center bg-slate-50/50">
+                     {cls}
+                   </div>
+                   {STAFFING_PERIODS.map(p => {
+                     const slot = schedule[currentDay]?.find(s => s.classId === cls && s.period === p);
+                     if (!slot) return <div key={p} className="border-r"></div>;
+                     
+                     const isFull = slot.teachers.length >= slot.capacity;
+                     
+                     return (
+                       <div key={p} className="border-r p-2 last:border-r-0 min-h-[80px] relative group">
+                         <div className="flex flex-wrap gap-1 mb-6">
+                           {slot.teachers.map((t, i) => (
+                             <span key={i} className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">
+                               {t}
+                             </span>
+                           ))}
+                           {slot.teachers.length === 0 && (
+                             <span className="text-xs text-slate-300 italic self-center mx-auto mt-2">-- 空缺 --</span>
+                           )}
+                         </div>
+                         
+                         {/* Controls */}
+                         <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                           <button onClick={() => toggleSlotCapacity(cls, p)} className="p-1 hover:bg-slate-200 rounded" title="切換人數上限">
+                             {slot.capacity === 1 ? <Users size={12} className="text-slate-400"/> : <Users size={12} className="text-indigo-600"/>}
+                           </button>
+                         </div>
+                       </div>
+                     );
+                   })}
                  </div>
                ))}
              </div>
@@ -907,70 +865,48 @@ const StaffingSystem = () => {
   );
 };
 
-// --- 3. MAIN LAYOUT ---
-
-export default function App() {
+// --- MAIN APP ---
+const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [currentLevel, setCurrentLevel] = useState('P3');
-  const [currentDay, setCurrentDay] = useState('Day 1');
+  const [level, setLevel] = useState('P1');
+  const [day, setDay] = useState('Day 1');
 
-  const navigateToSchedule = (day: string) => {
-    setCurrentLevel('P3');
-    setCurrentDay(day);
+  const navigateToSchedule = (targetDay: string) => {
+    setDay(targetDay);
     setActiveTab('schedule');
   };
 
-  const NavBtn = ({ id, label, icon }: any) => (
-    <button 
-      onClick={() => setActiveTab(id)} 
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-    >
-      {icon} <span>{label}</span>
-    </button>
-  );
-
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shadow-2xl z-20">
-        <div className="p-6 border-b border-slate-800">
-          <div className="flex items-center gap-2 font-bold text-xl text-white">
-            <Compass className="text-yellow-500" />
-            <span>課程指揮中心</span>
-          </div>
-          <div className="text-xs text-slate-500 mt-1">正覺蓮社學校 | V3.0 Final</div>
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      {/* Top Bar */}
+      <div className="bg-slate-900 text-white h-14 flex items-center justify-between px-4 sticky top-0 z-50 shadow-lg">
+        <div className="flex items-center gap-4">
+           {activeTab !== 'dashboard' ? (
+             <button onClick={() => setActiveTab('dashboard')} className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors font-bold">
+               <ChevronLeft size={20} /> 返回
+             </button>
+           ) : (
+             <div className="flex items-center gap-2 font-bold text-lg"><Brain className="text-indigo-400"/> 正覺蓮社學校 | 課程統整週</div>
+           )}
         </div>
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <NavBtn id="dashboard" label="總覽儀表板" icon={<BarChart size={18} />} />
-          <NavBtn id="schedule" label="全校時間表" icon={<Calendar size={18} />} />
-          <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">教學工具箱</div>
-          <NavBtn id="p2-tool" label="P2 電子繪本" icon={<BookOpen size={18} />} />
-          <NavBtn id="p3-math" label="P3 數學工具" icon={<Calculator size={18} />} />
-          <NavBtn id="p3-map" label="P3 戶外全景圖" icon={<Map size={18} />} />
-          <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">行政管理</div>
-          <NavBtn id="staffing" label="智能人手編配" icon={<Users size={18} />} />
-        </nav>
-        <div className="p-4 border-t border-slate-800 text-xs text-slate-500 text-center">
-          Design by EdTech Consultant
-        </div>
-      </aside>
+        <div className="text-sm font-mono opacity-50">V3.0 Final</div>
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 p-8 overflow-hidden h-screen flex flex-col">
+      {/* Content Area */}
+      <main className="h-[calc(100vh-56px)] overflow-hidden">
         {activeTab === 'dashboard' && <Dashboard changeTab={setActiveTab} />}
-        {activeTab === 'schedule' && (
-          <MasterSchedule 
-            selectedLevel={currentLevel} 
-            selectedDay={currentDay} 
-            setLevel={setCurrentLevel} 
-            setDay={setCurrentDay} 
-          />
+        {activeTab === 'schedule' && <div className="h-full p-4"><MasterSchedule selectedLevel={level} selectedDay={day} setLevel={setLevel} setDay={setDay} /></div>}
+        {activeTab === 'p2-tool' && <div className="h-full p-4 max-w-4xl mx-auto"><EBookReader /></div>}
+        {activeTab === 'p3-math' && (
+           <div className="h-full p-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+             <MathTool />
+             <OutingMap navigate={navigateToSchedule} />
+           </div>
         )}
-        {activeTab === 'p2-tool' && <EBookReader />}
-        {activeTab === 'p3-math' && <MathTool />}
-        {activeTab === 'p3-map' && <OutingMap navigate={navigateToSchedule} />}
         {activeTab === 'staffing' && <StaffingSystem />}
       </main>
     </div>
   );
-}
+};
+
+export default App;
