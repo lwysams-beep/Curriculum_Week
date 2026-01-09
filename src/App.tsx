@@ -41,7 +41,9 @@ import {
   X,
   UserMinus,
   UserPlus,
-  Trash2
+  Trash2,
+  Share2,
+  Code
 } from 'lucide-react';
 import { 
   BarChart as RechartBar, 
@@ -460,16 +462,156 @@ const OutingMap = ({ navigate }: { navigate: (day: string) => void }) => {
   );
 };
 
-// 2.4 Dashboard Component
+// 2.7 AI Design Assistant Component (Restored Feature)
+const AiDesignAssistant = () => {
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleAiGenerate = () => {
+    if (!aiPrompt) return;
+    setIsGenerating(true);
+    // Simulating AI generation based on persona expertise
+    setTimeout(() => {
+      setAiResponse(`
+      【AI 建議活動方案 - 基於 5C+ & AGILE】
+      針對您的需求：「${aiPrompt}」
+      
+      活動名稱：「正覺綠色小特工 - AR 尋寶」
+      1. 形式：利用平板電腦在校園內進行 AR 掃描 (數位能力)。
+      2. 任務：尋找校園內的植物並回答價值觀情境題 (保持好奇心)。
+      3. 5C+ 元素：
+         - Collaboration: 3人一組，分工合作（領航員、記錄員、操作員）。
+         - Critical Thinking: 判斷哪種行為才符合「愛護環境」。
+      4. 照顧多樣性：提供語音導航及圖片提示，支援 SEN 學生。
+      `);
+      setIsGenerating(false);
+    }, 1500);
+  };
+
+  return (
+    <div className="h-full flex flex-col animate-fadeIn bg-slate-50 p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-full flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-slate-100 bg-slate-50">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-indigo-800">
+            <Brain className="w-6 h-6" /> 
+            AI 課程設計顧問
+          </h2>
+          <p className="text-slate-500 text-sm mt-1">
+            身為資深課程主任，我能為您設計結合 5C+、價值觀教育與 STREAM 的活動。
+          </p>
+        </div>
+        
+        <div className="flex-1 p-6 overflow-y-auto">
+          {!aiResponse ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <Code className="w-16 h-16 mb-4 opacity-20" />
+              <p>請輸入指令，例如：「設計一個 P4 的跨課程閱讀活動，主題是中華文化與科技」</p>
+            </div>
+          ) : (
+            <div className="bg-white p-6 rounded-lg shadow border border-indigo-100 animate-fadeIn">
+               <pre className="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed">
+                 {aiResponse}
+               </pre>
+               <div className="mt-4 flex gap-2">
+                  <button className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-sm hover:bg-indigo-200">
+                    加入日程表
+                  </button>
+                  <button className="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200">
+                    匯出教案 (PDF)
+                  </button>
+               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-white border-t border-slate-200">
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              placeholder="輸入課程設計指令..." 
+              className="flex-1 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAiGenerate()}
+            />
+            <button 
+              onClick={handleAiGenerate}
+              disabled={isGenerating}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 flex items-center gap-2 font-bold shadow-sm"
+            >
+              {isGenerating ? '思考中...' : '生成方案'} <Cpu size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 2.8 Editor Console Component (Restored Feature)
+const EditorConsole = () => {
+  return (
+    <div className="h-full p-8 animate-fadeIn overflow-y-auto">
+      <div className="max-w-5xl mx-auto space-y-8">
+        <header className="text-center mb-8">
+          <FileText className="w-16 h-16 text-indigo-200 mx-auto mb-4" />
+          <h2 className="text-3xl font-bold text-slate-800">總編輯控制台</h2>
+          <p className="text-slate-500 mt-2">一鍵生成社交媒體貼文或教育局報告</p>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Social Media Card */}
+          <div className="bg-white border border-slate-200 rounded-xl p-8 hover:border-indigo-300 transition-colors cursor-pointer group shadow-sm hover:shadow-md">
+            <div className="flex justify-between items-start mb-4">
+              <Share2 className="w-8 h-8 text-blue-500" />
+              <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold">Social</span>
+            </div>
+            <h3 className="font-bold text-xl mb-2 group-hover:text-indigo-600 transition-colors">Facebook / IG 貼文生成</h3>
+            <p className="text-sm text-slate-500 mb-6">自動將本日活動亮點轉換為生動的社群文案，包含 Hashtags (#5CPlus #STREAM #正覺蓮社)。</p>
+            <div className="bg-slate-50 p-4 rounded-lg text-xs text-slate-600 font-mono border border-slate-100">
+              【精彩回顧】今日我哋化身未來城市設計師！🏗️<br/>
+              P.1-3 同學用 iPad 玩轉校園，展現協作精神...<br/>
+              #AIinEducation #ValuesEducation #正覺蓮社
+            </div>
+            <button className="mt-6 w-full py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors">
+              生成今日貼文
+            </button>
+          </div>
+
+          {/* Report Card */}
+          <div className="bg-white border border-slate-200 rounded-xl p-8 hover:border-emerald-300 transition-colors cursor-pointer group shadow-sm hover:shadow-md">
+            <div className="flex justify-between items-start mb-4">
+              <FileText className="w-8 h-8 text-emerald-500" />
+              <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-bold">Official</span>
+            </div>
+            <h3 className="font-bold text-xl mb-2 group-hover:text-emerald-600 transition-colors">教育局報告匯出</h3>
+            <p className="text-sm text-slate-500 mb-6">整理全方位學習津貼使用狀況、價值觀教育落實成效數據表，符合 EDB 格式。</p>
+            <div className="flex gap-3 mb-2">
+              <div className="h-16 w-12 bg-slate-100 border border-slate-300 rounded flex items-center justify-center text-xs text-slate-400">PDF</div>
+              <div className="h-16 w-12 bg-slate-100 border border-slate-300 rounded flex items-center justify-center text-xs text-slate-400">XLSX</div>
+            </div>
+            <button className="mt-6 w-full py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition-colors">
+              匯出成效報告
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 2.4 Dashboard Component (Updated with new links)
 const Dashboard = ({ changeTab }: { changeTab: (t: string) => void }) => (
-  <div className="space-y-6 animate-fadeIn">
+  <div className="space-y-6 animate-fadeIn p-6">
     <header className="mb-6">
-      <h2 className="text-3xl font-bold text-slate-800">課程指揮中心 正覺蓮社學校 | V3.0 Final</h2>
+      <h2 className="text-3xl font-bold text-slate-800">課程指揮中心 正覺蓮社學校 | V3.2 Fix</h2>
       <p className="text-slate-500">整合 5C+、STREAM、價值觀教育及 AI 科技</p>
     </header>
 
-    <div className="grid grid-cols-4 gap-6">
-      <div onClick={() => changeTab('schedule')} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm cursor-pointer hover:shadow-md transition-all group">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {/* 1. Schedule */}
+      <div onClick={() => changeTab('schedule')} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm cursor-pointer hover:shadow-md transition-all group relative overflow-hidden">
         <div className="flex justify-between items-start mb-4">
           <div className="p-3 bg-indigo-50 rounded-lg group-hover:bg-indigo-100 transition-colors"><Calendar className="text-indigo-600" /></div>
           <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded-full">Master</span>
@@ -478,6 +620,38 @@ const Dashboard = ({ changeTab }: { changeTab: (t: string) => void }) => (
         <p className="text-sm text-slate-500 mt-2">查看 P1-P3 每日詳細流程</p>
       </div>
 
+      {/* 2. Staffing */}
+      <div onClick={() => changeTab('staffing')} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-all group border-l-4 border-l-slate-800">
+        <div className="flex justify-between items-start mb-4">
+          <div className="p-3 bg-slate-50 rounded-lg group-hover:bg-slate-100 transition-colors"><Users className="text-slate-600" /></div>
+          <span className="bg-slate-600 text-white text-xs px-2 py-1 rounded-full">Admin</span>
+        </div>
+        <h3 className="font-bold text-slate-800 text-lg">智能人手編配</h3>
+        <p className="text-sm text-slate-500 mt-2">AI 排課、工作量統計</p>
+      </div>
+
+      {/* 3. AI Design (Restored) */}
+      <div onClick={() => changeTab('ai-design')} className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-xl shadow-sm cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all text-white relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-4 opacity-20"><Brain size={64}/></div>
+        <div className="flex justify-between items-start mb-4 relative z-10">
+          <div className="p-3 bg-white/20 rounded-lg"><Cpu className="text-white" /></div>
+          <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full">AI Tool</span>
+        </div>
+        <h3 className="font-bold text-white text-lg relative z-10">AI 課程設計助手</h3>
+        <p className="text-sm text-indigo-100 mt-2 relative z-10">生成 5C+ 活動教案</p>
+      </div>
+
+      {/* 4. Editor Console (Restored) */}
+      <div onClick={() => changeTab('export')} className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm cursor-pointer hover:shadow-md transition-all group">
+        <div className="flex justify-between items-start mb-4">
+          <div className="p-3 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors"><Share2 className="text-blue-600" /></div>
+          <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">Editor</span>
+        </div>
+        <h3 className="font-bold text-slate-800 text-lg">總編輯發布</h3>
+        <p className="text-sm text-slate-500 mt-2">社群貼文 & 官方報告</p>
+      </div>
+
+      {/* 5. P2 Tool */}
       <div onClick={() => changeTab('p2-tool')} className="bg-white p-6 rounded-xl border border-emerald-100 shadow-sm cursor-pointer hover:shadow-md transition-all group">
         <div className="flex justify-between items-start mb-4">
           <div className="p-3 bg-emerald-50 rounded-lg group-hover:bg-emerald-100 transition-colors"><BookOpen className="text-emerald-600" /></div>
@@ -487,6 +661,7 @@ const Dashboard = ({ changeTab }: { changeTab: (t: string) => void }) => (
         <p className="text-sm text-slate-500 mt-2">《機械人007》互動故事</p>
       </div>
 
+      {/* 6. P3 Tool */}
       <div onClick={() => changeTab('p3-math')} className="bg-white p-6 rounded-xl border border-amber-100 shadow-sm cursor-pointer hover:shadow-md transition-all group">
         <div className="flex justify-between items-start mb-4">
           <div className="p-3 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors"><Coins className="text-amber-600" /></div>
@@ -495,18 +670,9 @@ const Dashboard = ({ changeTab }: { changeTab: (t: string) => void }) => (
         <h3 className="font-bold text-slate-800 text-lg">貨幣換算 & 戶外圖</h3>
         <p className="text-sm text-slate-500 mt-2">遊客情境算術 + 考察圖</p>
       </div>
-
-      <div onClick={() => changeTab('staffing')} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-all group border-l-4 border-l-slate-800">
-        <div className="flex justify-between items-start mb-4">
-          <div className="p-3 bg-slate-50 rounded-lg group-hover:bg-slate-100 transition-colors"><Users className="text-slate-600" /></div>
-          <span className="bg-slate-600 text-white text-xs px-2 py-1 rounded-full">Admin</span>
-        </div>
-        <h3 className="font-bold text-slate-800 text-lg">智能人手編配</h3>
-        <p className="text-sm text-slate-500 mt-2">AI 排課、工作量統計</p>
-      </div>
     </div>
     
-    <div className="bg-slate-900 text-slate-300 p-6 rounded-xl text-sm flex justify-between items-center">
+    <div className="bg-slate-900 text-slate-300 p-6 rounded-xl text-sm flex justify-between items-center mt-auto">
       <div className="flex gap-4">
         <span className="flex items-center gap-2"><Brain size={16}/> 5C+ 架構</span>
         <span className="flex items-center gap-2"><Cpu size={16}/> AI 輔助</span>
@@ -598,7 +764,7 @@ const MasterSchedule = ({ selectedLevel, selectedDay, setLevel, setDay }: any) =
   );
 };
 
-// 2.6 Staffing System Component
+// 2.6 Staffing System Component (Updated)
 const StaffingSystem = () => {
   // State
   const [showConfig, setShowConfig] = useState(true);
@@ -607,6 +773,7 @@ const StaffingSystem = () => {
   const [defaultCapacity, setDefaultCapacity] = useState<number>(1);
   const [currentDay, setCurrentDay] = useState('Day 1');
   const [schedule, setSchedule] = useState<{ [day: string]: ClassAssignment[] }>({});
+  const [showStatsModal, setShowStatsModal] = useState(false); // 新增：控制統計大圖的開關
 
   // Initialize
   useEffect(() => {
@@ -719,12 +886,12 @@ const StaffingSystem = () => {
     });
     return Object.entries(counts)
       .map(([name, count]) => ({ name, count }))
-      .sort((a,b) => b.count - a.count)
-      .slice(0, 10);
+      .sort((a,b) => b.count - a.count);
+      // Removed .slice(0, 10) here so we have full data for the modal
   }, [schedule]);
 
   return (
-    <div className="h-full flex flex-col animate-fadeIn overflow-hidden">
+    <div className="h-full flex flex-col animate-fadeIn overflow-hidden relative">
       {/* Top Controls */}
       <div className="bg-white border-b p-4 flex justify-between items-center shadow-sm z-10">
         <div className="flex items-center gap-4">
@@ -752,57 +919,70 @@ const StaffingSystem = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Config Sidebar */}
         {showConfig && (
-          <div className="w-64 bg-slate-50 border-r overflow-y-auto p-4 flex-shrink-0 transition-all">
-             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Filter size={16}/> 編配篩選</h3>
-             
-             <div className="mb-6">
-               <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">年級選擇</label>
-               <div className="flex flex-wrap gap-2">
-                 {STAFFING_LEVELS.map(lvl => (
-                   <button 
-                     key={lvl} 
-                     onClick={() => toggleLevel(lvl)}
-                     className={`px-3 py-1 text-xs rounded border ${selectedLevels.includes(lvl) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600'}`}
-                   >
-                     {lvl}
-                   </button>
-                 ))}
+          <div className="w-64 bg-slate-50 border-r overflow-y-auto p-4 flex-shrink-0 transition-all flex flex-col">
+             <div className="flex-1">
+               <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Filter size={16}/> 編配篩選</h3>
+               
+               <div className="mb-6">
+                 <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">年級選擇</label>
+                 <div className="flex flex-wrap gap-2">
+                   {STAFFING_LEVELS.map(lvl => (
+                     <button 
+                       key={lvl} 
+                       onClick={() => toggleLevel(lvl)}
+                       className={`px-3 py-1 text-xs rounded border ${selectedLevels.includes(lvl) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600'}`}
+                     >
+                       {lvl}
+                     </button>
+                   ))}
+                 </div>
+               </div>
+
+               <div className="mb-6">
+                 <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">預設人手/班</label>
+                 <div className="flex items-center gap-2 bg-white p-2 rounded border">
+                   <UserMinus size={16} className="text-slate-400"/>
+                   <input 
+                     type="range" min="1" max="2" step="1" 
+                     value={defaultCapacity} onChange={(e) => setDefaultCapacity(parseInt(e.target.value))}
+                     className="flex-1"
+                   />
+                   <span className="font-bold text-indigo-600">{defaultCapacity}</span>
+                 </div>
+               </div>
+
+               <div className="mb-6">
+                 <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">排除教師 (請假/公務)</label>
+                 <div className="h-48 overflow-y-auto bg-white border rounded p-2 space-y-1">
+                   {MASTER_TEACHER_LIST.map(t => (
+                     <div key={t} onClick={() => toggleExcludedTeacher(t)} className={`flex items-center gap-2 text-sm p-1 rounded cursor-pointer ${excludedTeachers.includes(t) ? 'bg-red-50 text-red-600 line-through' : 'hover:bg-slate-50'}`}>
+                       <div className={`w-3 h-3 rounded-full border ${excludedTeachers.includes(t) ? 'bg-red-500 border-red-500' : 'border-slate-300'}`}></div>
+                       {t}
+                     </div>
+                   ))}
+                 </div>
                </div>
              </div>
 
-             <div className="mb-6">
-               <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">預設人手/班</label>
-               <div className="flex items-center gap-2 bg-white p-2 rounded border">
-                 <UserMinus size={16} className="text-slate-400"/>
-                 <input 
-                   type="range" min="1" max="2" step="1" 
-                   value={defaultCapacity} onChange={(e) => setDefaultCapacity(parseInt(e.target.value))}
-                   className="flex-1"
-                 />
-                 <span className="font-bold text-indigo-600">{defaultCapacity}</span>
+             {/* Clickable Mini Stats */}
+             <div 
+               className="border-t pt-4 mt-2 cursor-pointer hover:bg-indigo-50 p-2 rounded-lg transition-colors group"
+               onClick={() => setShowStatsModal(true)}
+               title="點擊查看詳細統計圖表"
+             >
+               <div className="flex justify-between items-center mb-2">
+                 <h4 className="font-bold text-xs text-slate-500 group-hover:text-indigo-600">實時工作量 Top 5</h4>
+                 <BarChart size={16} className="text-slate-400 group-hover:text-indigo-600"/>
                </div>
-             </div>
-
-             <div className="mb-6">
-               <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">排除教師 (請假/公務)</label>
-               <div className="h-48 overflow-y-auto bg-white border rounded p-2 space-y-1">
-                 {MASTER_TEACHER_LIST.map(t => (
-                   <div key={t} onClick={() => toggleExcludedTeacher(t)} className={`flex items-center gap-2 text-sm p-1 rounded cursor-pointer ${excludedTeachers.includes(t) ? 'bg-red-50 text-red-600 line-through' : 'hover:bg-slate-50'}`}>
-                     <div className={`w-3 h-3 rounded-full border ${excludedTeachers.includes(t) ? 'bg-red-500 border-red-500' : 'border-slate-300'}`}></div>
-                     {t}
-                   </div>
-                 ))}
-               </div>
-             </div>
-
-             <div className="border-t pt-4">
-               <h4 className="font-bold text-xs text-slate-500 mb-2">實時工作量 Top 5</h4>
                {teacherLoad.slice(0,5).map((t, i) => (
                  <div key={t.name} className="flex justify-between text-xs mb-1">
                    <span>{i+1}. {t.name}</span>
                    <span className="font-bold">{t.count} 節</span>
                  </div>
                ))}
+               <div className="text-[10px] text-center text-indigo-400 mt-2 font-bold group-hover:text-indigo-600">
+                 (點擊放大顯示詳情)
+               </div>
              </div>
           </div>
         )}
@@ -861,6 +1041,60 @@ const StaffingSystem = () => {
           </div>
         </div>
       </div>
+
+      {/* Stats Modal Overlay */}
+      {showStatsModal && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden animate-bounceIn">
+            <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                  <BarChart className="text-indigo-600" /> 教師工作量全覽
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  統計範圍：所有已編排時段 ({STAFFING_DAYS.length} 天)
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowStatsModal(false)}
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+              >
+                <X size={24} className="text-slate-500" />
+              </button>
+            </div>
+            
+            <div className="flex-1 p-6 overflow-hidden flex flex-col">
+              <div className="flex-1 min-h-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  {/* CRITICAL FIX: Changed from RechartBarChart (undefined) to RechartBar (alias for BarChart) */}
+                  <RechartBar
+                    data={teacherLoad.slice(0, 25)} // Show top 25 to avoid overcrowding
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 12}} />
+                    <Tooltip 
+                      cursor={{fill: 'rgba(99, 102, 241, 0.1)'}}
+                      contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}}
+                    />
+                    <Legend />
+                    <Bar dataKey="count" name="負責節數" fill="#4f46e5" radius={[0, 4, 4, 0]}>
+                      {teacherLoad.slice(0, 25).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={index < 3 ? '#ef4444' : (index < 10 ? '#f59e0b' : '#4f46e5')} />
+                      ))}
+                    </Bar>
+                  </RechartBar>
+                </ResponsiveContainer>
+              </div>
+              <p className="text-center text-xs text-slate-400 mt-4">
+                * 圖表顯示工作量最高的前 25 位教師。紅色代表高負荷，橙色代表中等負荷。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -889,12 +1123,14 @@ const App = () => {
              <div className="flex items-center gap-2 font-bold text-lg"><Brain className="text-indigo-400"/> 正覺蓮社學校 | 課程統整週</div>
            )}
         </div>
-        <div className="text-sm font-mono opacity-50">V3.0 Final</div>
+        <div className="text-sm font-mono opacity-50">V3.2 Fix</div>
       </div>
 
       {/* Content Area */}
       <main className="h-[calc(100vh-56px)] overflow-hidden">
         {activeTab === 'dashboard' && <Dashboard changeTab={setActiveTab} />}
+        {activeTab === 'ai-design' && <AiDesignAssistant />}
+        {activeTab === 'export' && <EditorConsole />}
         {activeTab === 'schedule' && <div className="h-full p-4"><MasterSchedule selectedLevel={level} selectedDay={day} setLevel={setLevel} setDay={setDay} /></div>}
         {activeTab === 'p2-tool' && <div className="h-full p-4 max-w-4xl mx-auto"><EBookReader /></div>}
         {activeTab === 'p3-math' && (
