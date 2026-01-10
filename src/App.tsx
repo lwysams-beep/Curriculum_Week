@@ -177,7 +177,9 @@ const FIVE_C_PLUS = [
 const AGILE_SKILLS = ["AI數位", "適應性", "好奇心", "解難", "韌性", "領導力"];
 const STAFFING_LEVELS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
 const CLASS_SUFFIXES = ['A', 'B', 'C', 'D', 'E'];
-const ALL_CLASSES = STAFFING_LEVELS.flatMap(lvl => CLASS_SUFFIXES.map(s => `${lvl.replace('P','')}${s}`)); 
+// Updated: Exclude 1E and 3E
+const ALL_CLASSES = STAFFING_LEVELS.flatMap(lvl => CLASS_SUFFIXES.map(s => `${lvl.replace('P','')}${s}`))
+  .filter(cls => cls !== '1E' && cls !== '3E');
 
 // ==========================================
 // SECTION 2: COMPONENTS
