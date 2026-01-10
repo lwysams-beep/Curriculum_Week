@@ -41,7 +41,7 @@ import {
   Cell 
 } from 'recharts';
 
-// Firebase Imports (using @ts-ignore to bypass module resolution issues if types are missing)
+// Firebase Imports
 // @ts-ignore
 import { initializeApp } from 'firebase/app';
 // @ts-ignore
@@ -53,7 +53,6 @@ import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 // SECTION 0: FIREBASE CONFIG & UTILS
 // ==========================================
 
-// Helper to safely access globals or return defaults
 const getGlobalVar = (key: string): any => {
   if (typeof window !== 'undefined' && (window as any)[key]) {
     return (window as any)[key];
@@ -61,7 +60,12 @@ const getGlobalVar = (key: string): any => {
   return undefined;
 };
 
-// 安全獲取 Firebase 設定
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAvl1XfKbQvVueXHAjv6bjUnvJmRMEp3UM",
   authDomain: "curriculum-manager01.firebaseapp.com",
@@ -74,8 +78,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-const firebaseConfig = getFirebaseConfig();
-// 只有在 config 有效時才初始化，避免白屏
+// Conditional initialization
 const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfig) : undefined;
 const auth = app ? getAuth(app) : undefined;
 const db = app ? getFirestore(app) : undefined;
@@ -94,7 +97,7 @@ const useAuth = () => {
       try {
         await signInAnonymously(auth);
       } catch (e) {
-        console.error("Auth failed (Offline mode)", e);
+        console.error("Auth failed", e);
       }
     };
     initAuth();
@@ -399,7 +402,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
 
   // Firestore Sync - Load Data
   useEffect(() => {
-    if (!auth || !db) return;
+    if (!user || !db) return;
     try {
       const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), (docSnap: any) => {
         if (docSnap.exists()) {
@@ -428,7 +431,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const text = evt.target.result as string;
-      const lines = text.split('\n').filter((l: string) => l.trim());
+      const lines = text.split('\n').filter(l => l.trim());
       
       const newTeacherList: any[] = [];
       const newSubjects: any = {};
@@ -438,7 +441,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       ALL_CLASSES.forEach(cls => newClassInfo[cls] = { head: '待定', subjects: [] });
 
       for (let i = 2; i < lines.length; i++) {
-        const cols = lines[i].split(',').map((c: string) => c.trim());
+        const cols = lines[i].split(',').map(c => c.trim());
         const name = cols[1];
         
         if (!name) continue; 
@@ -481,7 +484,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       setClassTeacherInfo(newClassInfo);
       setIsDataLoaded(true);
 
-      if (auth && db) {
+      if (user && db) {
         try {
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), {
             teacherList: sortedTeachers,
