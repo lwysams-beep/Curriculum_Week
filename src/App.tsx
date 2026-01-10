@@ -41,31 +41,16 @@ import {
   Cell 
 } from 'recharts';
 
-// Firebase Imports
-// @ts-ignore
+// Firebase Imports (Direct import, Typescript friendly)
 import { initializeApp } from 'firebase/app';
-// @ts-ignore
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-// @ts-ignore
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // ==========================================
 // SECTION 0: FIREBASE CONFIG & UTILS
 // ==========================================
 
-const getGlobalVar = (key: string): any => {
-  if (typeof window !== 'undefined' && (window as any)[key]) {
-    return (window as any)[key];
-  }
-  return undefined;
-};
-
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
+// 直接寫入您的 Firebase 設定 (最穩定)
 const firebaseConfig = {
   apiKey: "AIzaSyAvl1XfKbQvVueXHAjv6bjUnvJmRMEp3UM",
   authDomain: "curriculum-manager01.firebaseapp.com",
@@ -75,15 +60,11 @@ const firebaseConfig = {
   appId: "1:949862664220:web:bb114560a402f0911c77d9"
 };
 
-// Initialize Firebase
+// Initialize Firebase safely
 const app = initializeApp(firebaseConfig);
-
-// Conditional initialization
-const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfig) : undefined;
-const auth = app ? getAuth(app) : undefined;
-const db = app ? getFirestore(app) : undefined;
-const appId = getGlobalVar('__app_id') || 'default-app-id';
-const initialToken = getGlobalVar('__initial_auth_token');
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = 'curriculum-manager-v5'; 
 
 // Hook for Auth
 const useAuth = () => {
@@ -91,9 +72,6 @@ const useAuth = () => {
   useEffect(() => {
     if (!auth) return;
     const initAuth = async () => {
-      if (initialToken) {
-        // Handle custom token if provided
-      } 
       try {
         await signInAnonymously(auth);
       } catch (e) {
@@ -165,7 +143,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 p-10 flex flex-col animate-fadeIn">
         <div className="mb-8 text-center">
           <div className="inline-block bg-indigo-100 p-4 rounded-full mb-4"><Brain size={48} className="text-indigo-600" /></div>
-          <h1 className="text-3xl font-black text-slate-800 mb-2">課程指揮中心 <span className="text-indigo-600">V5.3 Stable</span></h1>
+          <h1 className="text-3xl font-black text-slate-800 mb-2">課程指揮中心 <span className="text-indigo-600">V5.4 Stable</span></h1>
           <p className="text-slate-500">系統初始化：設定活動架構、日期與雲端同步</p>
         </div>
 
@@ -174,7 +152,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block">參與年級</label>
               <div className="grid grid-cols-3 gap-3">
-                {STAFFING_LEVELS.map(level => (
+                {STAFFING_LEVELS.map((level: string) => (
                   <button key={level} onClick={() => toggleGrade(level)} className={`py-3 rounded-lg border-2 text-sm font-bold transition-all ${selectedGrades.includes(level) ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 bg-white text-slate-400 hover:bg-slate-50'}`}>
                     {level}
                   </button>
@@ -187,7 +165,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
                <input 
                  type="date" 
                  value={startDate} 
-                 onChange={(e) => setStartDate(e.target.value)} 
+                 onChange={(e: any) => setStartDate(e.target.value)} 
                  className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-slate-700 font-bold outline-none focus:border-indigo-600 focus:bg-indigo-50 transition-colors"
                />
             </div>
@@ -197,12 +175,12 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
             <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
                 <div className="mb-6">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2"><Clock size={14}/> 活動日數 (Days)</label>
-                  <input type="range" min="1" max="5" value={daysCount} onChange={(e) => setDaysCount(parseInt(e.target.value))} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mb-2"/>
+                  <input type="range" min="1" max="5" value={daysCount} onChange={(e: any) => setDaysCount(parseInt(e.target.value))} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mb-2"/>
                   <div className="flex justify-between text-xs text-slate-500 font-mono"><span>1</span><span className="text-indigo-600 font-bold text-lg">{daysCount} Days</span><span>5</span></div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2"><Clock size={14}/> 每日堂數 (Periods)</label>
-                  <input type="range" min="4" max="9" value={periodsCount} onChange={(e) => setPeriodsCount(parseInt(e.target.value))} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mb-2"/>
+                  <input type="range" min="4" max="9" value={periodsCount} onChange={(e: any) => setPeriodsCount(parseInt(e.target.value))} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mb-2"/>
                   <div className="flex justify-between text-xs text-slate-500 font-mono"><span>4</span><span className="text-indigo-600 font-bold text-lg">{periodsCount} Periods</span><span>9</span></div>
                 </div>
             </div>
@@ -243,7 +221,7 @@ const AiDesignView = () => {
           {aiResponse ? <pre className="whitespace-pre-wrap text-slate-700">{aiResponse}</pre> : <div className="text-slate-400 text-center mt-20">請輸入課程主題...</div>}
         </div>
         <div className="flex gap-2">
-          <input type="text" placeholder="輸入指令..." className="flex-1 border rounded-lg px-4 py-2" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
+          <input type="text" placeholder="輸入指令..." className="flex-1 border rounded-lg px-4 py-2" value={aiPrompt} onChange={(e: any) => setAiPrompt(e.target.value)} />
           <button onClick={handleAiGenerate} disabled={isGenerating} className="bg-indigo-600 text-white px-6 py-2 rounded-lg">{isGenerating ? '...' : '生成'}</button>
         </div>
       </div>
@@ -402,7 +380,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
 
   // Firestore Sync - Load Data
   useEffect(() => {
-    if (!user || !db) return;
+    if (!auth || !db) return;
     try {
       const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), (docSnap: any) => {
         if (docSnap.exists()) {
@@ -431,7 +409,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const text = evt.target.result as string;
-      const lines = text.split('\n').filter(l => l.trim());
+      const lines = text.split('\n').filter((l: string) => l.trim());
       
       const newTeacherList: any[] = [];
       const newSubjects: any = {};
@@ -441,7 +419,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       ALL_CLASSES.forEach(cls => newClassInfo[cls] = { head: '待定', subjects: [] });
 
       for (let i = 2; i < lines.length; i++) {
-        const cols = lines[i].split(',').map(c => c.trim());
+        const cols = lines[i].split(',').map((c: string) => c.trim());
         const name = cols[1];
         
         if (!name) continue; 
@@ -484,7 +462,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       setClassTeacherInfo(newClassInfo);
       setIsDataLoaded(true);
 
-      if (user && db) {
+      if (auth && db) {
         try {
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), {
             teacherList: sortedTeachers,
@@ -683,7 +661,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                   <label className="text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">預設人手 (Capacity)</label>
                   <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                     <UserMinus size={18} className="text-slate-400"/>
-                    <input type="range" min="1" max="4" step="1" value={defaultCapacity} onChange={(e) => setDefaultCapacity(parseInt(e.target.value))} className="flex-1 accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"/>
+                    <input type="range" min="1" max="4" step="1" value={defaultCapacity} onChange={(e: any) => setDefaultCapacity(parseInt(e.target.value))} className="flex-1 accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"/>
                     <span className="font-bold text-indigo-600 text-lg w-6 text-center">{defaultCapacity}</span>
                   </div>
                 </div>
@@ -792,84 +770,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-// --- 3.0 Main App ---
-const App = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  
-  // System State
-  const [isSystemStarted, setIsSystemStarted] = useState(false);
-  const [sysConfig, setSysConfig] = useState<any>(null);
-  const [activeDay, setActiveDay] = useState('Day 1');
-  
-  // Auth State
-  const user = useAuth();
-
-  const handleWizardComplete = (config: any) => {
-    setSysConfig(config);
-    setIsSystemStarted(true);
-  };
-
-  if (!isSystemStarted) {
-    return <SetupWizard onComplete={handleWizardComplete} />;
-  }
-
-  return (
-    <div className="h-screen bg-slate-50 font-sans text-slate-900 flex overflow-hidden">
-      <nav className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-white border-r flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col relative z-30`}>
-        <div className="p-4 border-b flex items-center gap-2 bg-indigo-900 text-white h-16">
-          <Brain className="flex-shrink-0" />
-          <span className="font-bold truncate">課程指揮中心</span>
-        </div>
-        <div className="flex-1 overflow-y-auto py-4 space-y-1">
-          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Layout size={20} /><span className="truncate">總覽儀表板</span></button>
-          <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'staff' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Users size={20} /><span className="truncate">人手分配</span></button>
-          <button onClick={() => setActiveTab('venue')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'venue' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><MapPin size={20} /><span className="truncate">地點分配</span></button>
-          <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'ai-design' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Cpu size={20} /><span className="truncate">AI 課程設計</span></button>
-        </div>
-        <div className="p-4 border-t text-xs text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V5.3 Stable</span>
-          <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}>
-            <Cloud size={10} /> {user ? 'Online' : 'Offline'}
-          </span>
-        </div>
-      </nav>
-
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        <header className="bg-white h-16 border-b px-4 flex items-center justify-between shadow-sm z-20 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
-              {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
-            </button>
-            <h1 className="text-lg font-bold text-slate-800 truncate">
-              {activeTab === 'dashboard' && '總覽儀表板'}
-              {activeTab === 'staff' && '智能人手編配系統'}
-              {activeTab === 'venue' && `地點與場地分配 (${activeDay})`}
-              {activeTab === 'ai-design' && 'AI 課程設計助手'}
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-100 p-1 rounded-lg flex items-center">
-               <span className="text-xs font-bold text-slate-400 px-2 uppercase">Global Day:</span>
-               <select value={activeDay} onChange={(e) => setActiveDay(e.target.value)} className="bg-transparent text-sm font-bold text-indigo-700 outline-none">
-                 {Array.from({length: sysConfig.daysCount}, (_, i) => `Day ${i+1}`).map((d: any) => <option key={d} value={d}>{d}</option>)}
-               </select>
-            </div>
-            <div className="w-8 h-8 bg-indigo-900 rounded-full flex items-center justify-center text-white text-xs font-bold">陳</div>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-hidden relative bg-slate-50">
-          {activeTab === 'dashboard' && <DashboardView config={sysConfig} />}
-          {activeTab === 'staff' && <StaffingSystem config={sysConfig} activeDay={activeDay} setActiveDay={setActiveDay} user={user} />}
-          {activeTab === 'venue' && <VenueAllocationSystem config={sysConfig} activeDay={activeDay} />}
-          {activeTab === 'ai-design' && <AiDesignView />}
-        </div>
-      </div>
     </div>
   );
 };
