@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Calendar, 
@@ -13,14 +12,22 @@ import {
   CheckCircle,
   BarChart,
   Code,
-  Menu,       // 新增：漢堡選單圖示
-  ChevronLeft,// 新增：收起圖示
+  Menu,
+  ChevronLeft,
   Settings,
   Filter,
   UserMinus,
   X,
   GripHorizontal,
-  Trash2
+  Trash2,
+  ArrowRight,
+  MapPin,
+  Clock,
+  BookOpen,
+  Info,
+  Upload,
+  Cloud,
+  Database
 } from 'lucide-react';
 import { 
   BarChart as RechartBar, 
@@ -30,18 +37,49 @@ import {
   CartesianGrid, 
   Tooltip, 
   Legend, 
-  ResponsiveContainer,
+  ResponsiveContainer, 
   Cell 
 } from 'recharts';
 
+// Firebase Imports
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from 'firebase/firestore';
+
 // ==========================================
-// SECTION 1: GLOBAL DATA CONSTANTS
+// SECTION 0: FIREBASE CONFIG & UTILS
+// ==========================================
+
+const firebaseConfig = JSON.parse(__firebase_config || '{}');
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// Hook for Auth
+const useAuth = () => {
+  const [user, setUser] = useState(null);
+  useEffect(() => {
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        // Handle custom token if provided
+      } 
+      await signInAnonymously(auth);
+    };
+    initAuth();
+    return onAuthStateChanged(auth, setUser);
+  }, []);
+  return user;
+};
+
+// ==========================================
+// SECTION 1: GLOBAL DATA CONSTANTS & MOCKS (Fallback)
 // ==========================================
 
 const INITIAL_SCHEDULE = [
   {
     id: 1,
-    day: '1月19日 (週一)',
+    day: 'Day 1',
     theme: '啟動與探索 (Discovery)',
     activities: [
       { time: '08:30 - 09:30', title: '開幕禮：未來城市設計師', level: '全校', elements: ['Communication', 'Values: 承擔精神'], skills: ['AI 認知', '好奇心'], staff: '陳主任 (統籌)' },
@@ -50,26 +88,10 @@ const INITIAL_SCHEDULE = [
   },
   {
     id: 2,
-    day: '1月20日 (週二)',
+    day: 'Day 2',
     theme: 'STREAM 創客挑戰 (Maker)',
     activities: [
       { time: '09:00 - 12:30', title: '高小跨學科：智能家居原型製作', level: 'P4-P6', elements: ['Critical Thinking', 'Contribution', 'Creativity'], skills: ['解決複雜問題', '編程思維'], staff: 'STEM 組' }
-    ]
-  },
-  {
-    id: 3,
-    day: '1月21日 (週三)',
-    theme: '全方位社區考察 (Community)',
-    activities: [
-      { time: '09:00 - 15:00', title: '粉嶺社區價值觀考察團', level: 'P4-P6', elements: ['Communication', 'Values: 關愛', 'Values: 同理心'], skills: ['協作', '分析能力'], staff: '訓輔組' }
-    ]
-  },
-  {
-    id: 4,
-    day: '1月22日 (週四)',
-    theme: '成果分享與感恩 (Celebration)',
-    activities: [
-      { time: '10:00 - 12:00', title: '成果展示嘉年華 & 5C+ 頒獎禮', level: '全校', elements: ['Confidence', 'Appreciation', 'Values: 感恩'], skills: ['表達能力', '反思'], staff: '全體老師' }
     ]
   }
 ];
@@ -85,324 +107,613 @@ const FIVE_C_PLUS = [
 
 const AGILE_SKILLS = ["數位能力 (AI/Big Data)", "適應性 (Adaptability)", "好奇心 (Curiosity)", "解決複雜問題", "韌性 (Resilience)", "領導力"];
 
-// --- STAFFING SPECIFIC DATA ---
-const STAFFING_DAYS = ['Day 1', 'Day 2', 'Day 3', 'Day 4'];
-const STAFFING_PERIODS = [1, 2, 3, 4, 5, 6];
 const STAFFING_LEVELS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
-
-const CLASS_TEACHERS_MOCK = {
-  '1A': ['袁紫茵', '何詠賢'], '1B': ['黃雅珍', '陳曉晴'], '1C': ['陳淑芳', '陳佩容'], '1D': ['李運娣', '陳慧淇'],
-  '2A': ['陳子殷'], '2B': ['侯慧穎'], '2C': ['譚慧琨'], '2D': ['楊靖霖'], '2E': ['方慧菁'],
-  '3A': ['蘇靜怡'], '3B': ['王栢榮'], '3C': ['廖小玲'], '3D': ['鄺保羅'],
-  '4A': ['陳珮儀'], '4B': ['丁紹斌'], '4C': ['張展瑋'], '4D': ['呂常欣'], '4E': ['黃浩謙'],
-  '5A': ['鄭愷詩'], '5B': ['黃多蔚'], '5C': ['邵家兒'], '5D': ['羅佩珊'], '5E': ['許婉寧'],
-  '6A': ['陳偉芬'], '6B': ['林錦屏'], '6C': ['黎保妤'], '6D': ['黃馨慧'], '6E': ['王美麗']
-};
-const ALL_CLASSES = Object.keys(CLASS_TEACHERS_MOCK);
-const EXTRA_TEACHERS = ['陳淑怡', '楊雅恩', '沈詠兒', '校長', '副校長', '主任'];
-
-const getMasterTeacherList = () => {
-  const teacherSet = new Set();
-  Object.values(CLASS_TEACHERS_MOCK).forEach(tList => tList.forEach(t => teacherSet.add(t)));
-  EXTRA_TEACHERS.forEach(t => teacherSet.add(t));
-  return Array.from(teacherSet).sort();
-};
-const MASTER_TEACHER_LIST = getMasterTeacherList();
-
-const TEACHER_SUBJECTS = {};
-MASTER_TEACHER_LIST.forEach((t, i) => {
-  const subjects = ['Chinese', 'English', 'Maths', 'GS'];
-  if (i % 5 === 0) subjects.push('VA');
-  if (i % 6 === 0) subjects.push('PE');
-  TEACHER_SUBJECTS[t] = subjects;
-});
-
-const generateOriginalSchedules = () => {
-  const schedules = {};
-  MASTER_TEACHER_LIST.forEach((name) => {
-    schedules[name] = {};
-    STAFFING_DAYS.forEach(day => { schedules[name][day] = Math.floor(Math.random() * 4) + 3; });
-  });
-  return schedules;
-};
-const TEACHER_ORIGINAL_LOADS = generateOriginalSchedules();
+const CLASS_SUFFIXES = ['A', 'B', 'C', 'D', 'E'];
+const ALL_CLASSES = STAFFING_LEVELS.flatMap(lvl => CLASS_SUFFIXES.map(s => `${lvl.replace('P','')}${s}`)); 
 
 // ==========================================
 // SECTION 2: SUB-COMPONENTS
 // ==========================================
 
-// --- 2.1 Staffing System (Restored from V3.9) ---
-const StaffingSystem = () => {
+// --- 2.0 Setup Wizard ---
+const SetupWizard = ({ onComplete }) => {
+  const [selectedGrades, setSelectedGrades] = useState(['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
+  const [daysCount, setDaysCount] = useState(4);
+  const [periodsCount, setPeriodsCount] = useState(6);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
+
+  const toggleGrade = (grade) => {
+    setSelectedGrades(prev => prev.includes(grade) ? prev.filter(g => g !== grade) : [...prev, grade].sort());
+  };
+
+  return (
+    <div className="h-screen w-full bg-slate-50 flex items-center justify-center font-sans">
+      <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 p-10 flex flex-col animate-fadeIn">
+        <div className="mb-8 text-center">
+          <div className="inline-block bg-indigo-100 p-4 rounded-full mb-4"><Brain size={48} className="text-indigo-600" /></div>
+          <h1 className="text-3xl font-black text-slate-800 mb-2">課程指揮中心 <span className="text-indigo-600">V5.2 Cloud</span></h1>
+          <p className="text-slate-500">系統初始化：設定活動架構、日期與雲端同步</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-10 mb-8">
+          {/* Left Column */}
+          <div className="space-y-6">
+            <div>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block">參與年級</label>
+              <div className="grid grid-cols-3 gap-3">
+                {STAFFING_LEVELS.map(level => (
+                  <button key={level} onClick={() => toggleGrade(level)} className={`py-3 rounded-lg border-2 text-sm font-bold transition-all ${selectedGrades.includes(level) ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 bg-white text-slate-400 hover:bg-slate-50'}`}>
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block flex items-center gap-2"><Calendar size={14}/> 活動開始日期</label>
+               <input 
+                 type="date" 
+                 value={startDate} 
+                 onChange={(e) => setStartDate(e.target.value)} 
+                 className="w-full border-2 border-slate-200 rounded-lg px-4 py-3 text-slate-700 font-bold outline-none focus:border-indigo-600 focus:bg-indigo-50 transition-colors"
+               />
+            </div>
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-8">
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
+                <div className="mb-6">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2"><Clock size={14}/> 活動日數 (Days)</label>
+                  <input type="range" min="1" max="5" value={daysCount} onChange={(e) => setDaysCount(parseInt(e.target.value))} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mb-2"/>
+                  <div className="flex justify-between text-xs text-slate-500 font-mono"><span>1</span><span className="text-indigo-600 font-bold text-lg">{daysCount} Days</span><span>5</span></div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2"><Clock size={14}/> 每日堂數 (Periods)</label>
+                  <input type="range" min="4" max="9" value={periodsCount} onChange={(e) => setPeriodsCount(parseInt(e.target.value))} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mb-2"/>
+                  <div className="flex justify-between text-xs text-slate-500 font-mono"><span>4</span><span className="text-indigo-600 font-bold text-lg">{periodsCount} Periods</span><span>9</span></div>
+                </div>
+            </div>
+            
+            <div className="flex items-center gap-3 text-xs text-slate-400 bg-yellow-50 p-3 rounded border border-yellow-100">
+               <Database size={16} className="text-yellow-600"/>
+               <span>資料將自動同步至雲端資料庫 (Firestore)</span>
+            </div>
+          </div>
+        </div>
+
+        <button onClick={() => onComplete({ selectedGrades, daysCount, periodsCount, startDate })} disabled={selectedGrades.length === 0} className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${selectedGrades.length > 0 ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+          啟動指揮中心 <ArrowRight size={20} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- AiDesignView ---
+const AiDesignView = () => {
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const handleAiGenerate = () => {
+    if (!aiPrompt) return;
+    setIsGenerating(true);
+    setTimeout(() => {
+      setAiResponse(`【AI 建議方案】\n針對：「${aiPrompt}」\n活動：AR 綠色尋寶\n5C+：協作、慎思明辨\nAGILE：數位適應性`);
+      setIsGenerating(false);
+    }, 1000);
+  };
+  return (
+    <div className="h-full p-6 flex flex-col bg-slate-50">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-full flex flex-col p-6">
+        <h2 className="text-xl font-bold flex items-center gap-2 mb-4 text-indigo-800"><Brain /> AI 課程設計顧問</h2>
+        <div className="flex-1 bg-slate-50 rounded-lg p-4 mb-4 overflow-y-auto border border-slate-100">
+          {aiResponse ? <pre className="whitespace-pre-wrap text-slate-700">{aiResponse}</pre> : <div className="text-slate-400 text-center mt-20">請輸入課程主題...</div>}
+        </div>
+        <div className="flex gap-2">
+          <input type="text" placeholder="輸入指令..." className="flex-1 border rounded-lg px-4 py-2" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
+          <button onClick={handleAiGenerate} disabled={isGenerating} className="bg-indigo-600 text-white px-6 py-2 rounded-lg">{isGenerating ? '...' : '生成'}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Dashboard View ---
+const DashboardView = ({ config }) => {
+  // Calculate Countdown
+  const today = new Date();
+  const start = new Date(config.startDate);
+  const diffTime = start - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  const countdownText = diffDays > 0 ? `${diffDays} 天` : (diffDays === 0 ? "今天！" : "已開始");
+  const countdownColor = diffDays <= 3 ? "text-red-500" : "text-white";
+
+  return (
+    <div className="h-full overflow-y-auto p-8 bg-slate-50">
+      <div className="max-w-[1600px] mx-auto space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h3 className="text-gray-500 text-sm font-semibold mb-4 flex items-center gap-2"><Target size={16}/> 5C+ 核心元素</h3>
+            <div className="space-y-3">{FIVE_C_PLUS.map(item => (<div key={item.code} className="flex justify-between text-sm"><span className="text-slate-600">{item.label}</span><div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full ${item.color.split(' ')[0].replace('bg-', 'bg-')}`} style={{width: '60%'}}></div></div></div>))}</div>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h3 className="text-gray-500 text-sm font-semibold mb-4 flex items-center gap-2"><Cpu size={16}/> AGILE 技能</h3>
+            <div className="flex flex-wrap gap-2">{AGILE_SKILLS.map(skill => (<span key={skill} className="px-3 py-1 bg-cyan-50 text-cyan-700 text-xs rounded-lg border border-cyan-100">{skill}</span>))}</div>
+          </div>
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 rounded-2xl shadow-xl text-white flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-10 bg-white/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+            <div>
+              <h3 className="font-semibold opacity-90 flex items-center gap-2"><Clock size={18}/> 活動倒數計時</h3>
+              <p className="text-sm opacity-80 mt-1">目標日期: {config.startDate}</p>
+            </div>
+            <div className="mt-4">
+              <p className={`text-6xl font-black tracking-tighter ${countdownColor}`}>{countdownText}</p>
+              <p className="text-sm opacity-90 mt-2 font-bold tracking-wide uppercase">Ready to Launch</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Calendar className="text-indigo-600" /> 課程統整周流程</h3></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">{INITIAL_SCHEDULE.map(day => (<div key={day.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100"><h4 className="font-bold text-slate-800">{day.day}</h4><p className="text-sm text-indigo-600 mb-2">{day.theme}</p><ul className="space-y-1">{day.activities.map((act,i)=><li key={i} className="text-xs text-slate-500 truncate">• {act.title}</li>)}</ul></div>))}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Venue System ---
+const VenueAllocationSystem = ({ config, activeDay }) => {
+  const VENUES = ['禮堂', '雨天操場'];
+  const [schedule, setSchedule] = useState({});
+  const [draggedClass, setDraggedClass] = useState(null);
+
+  useEffect(() => {
+    setSchedule(prev => {
+      const newSched = { ...prev };
+      for (let d = 1; d <= config.daysCount; d++) {
+        const dayKey = `Day ${d}`;
+        if (!newSched[dayKey]) {
+          newSched[dayKey] = {};
+          VENUES.forEach(v => {
+            newSched[dayKey][v] = {};
+            for (let p = 1; p <= config.periodsCount; p++) newSched[dayKey][v][p] = [];
+          });
+        }
+      }
+      return newSched;
+    });
+  }, [config]);
+
+  const handleDragStart = (e, classId) => { setDraggedClass(classId); e.dataTransfer.effectAllowed = "copy"; };
+  const handleDrop = (e, venue, period) => {
+    e.preventDefault();
+    if (!draggedClass) return;
+    const dayKey = activeDay;
+    setSchedule(prev => {
+      if (!prev[dayKey]) return prev;
+      const newDaySched = { ...prev[dayKey] };
+      const currentList = newDaySched[venue]?.[period] || [];
+      if (!currentList.includes(draggedClass)) { newDaySched[venue][period] = [...currentList, draggedClass]; }
+      return { ...prev, [dayKey]: newDaySched };
+    });
+    setDraggedClass(null);
+  };
+  const handleRemoveClass = (venue, period, classId) => {
+    const dayKey = activeDay;
+    setSchedule(prev => {
+      if (!prev[dayKey]) return prev;
+      const newDaySched = { ...prev[dayKey] };
+      newDaySched[venue][period] = newDaySched[venue][period].filter(c => c !== classId);
+      return { ...prev, [dayKey]: newDaySched };
+    });
+  };
+
+  const availableClasses = ALL_CLASSES.filter(c => config.selectedGrades.includes('P'+c.charAt(0)));
+
+  return (
+    <div className="flex h-full bg-slate-50">
+      <div className="w-48 bg-white border-r p-4 overflow-y-auto flex-shrink-0">
+        <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Users size={18}/> 班級列表</h3>
+        <div className="space-y-2">
+          {availableClasses.map(cls => (
+            <div key={cls} draggable onDragStart={(e) => handleDragStart(e, cls)} className="bg-white border border-slate-200 p-2 rounded shadow-sm cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:text-indigo-600 transition-colors text-center font-bold text-slate-600">{cls}</div>
+          ))}
+        </div>
+      </div>
+      <div className="flex-1 overflow-auto p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-w-[800px]">
+          {VENUES.map(venue => (
+            <div key={venue} className="mb-8 last:mb-0">
+              <div className="bg-slate-100 p-3 border-b border-slate-200 font-bold text-slate-700 flex items-center gap-2 sticky top-0"><MapPin size={18} className="text-indigo-600"/> {venue}</div>
+              <div className="grid" style={{ gridTemplateColumns: `repeat(${config.periodsCount}, 1fr)` }}>
+                {Array.from({ length: config.periodsCount }, (_, i) => i + 1).map(p => (
+                  <div key={p} className="border-r border-b border-slate-200 min-h-[120px] p-2 bg-slate-50/30" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, venue, p)}>
+                    <div className="text-xs font-bold text-slate-400 mb-2 text-center">第 {p} 節</div>
+                    <div className="flex flex-wrap gap-1">
+                      {schedule[activeDay]?.[venue]?.[p]?.map(cls => (
+                        <div key={cls} className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded flex items-center gap-1">{cls}<button onClick={() => handleRemoveClass(venue, p, cls)} className="hover:text-red-500"><X size={10}/></button></div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- 2.1 Staffing System (Updated with CSV Upload & Cloud) ---
+const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
   const [showConfig, setShowConfig] = useState(true);
-  const [selectedLevels, setSelectedLevels] = useState(['P1', 'P2', 'P3', 'P4', 'P5', 'P6']); 
-  const [excludedTeachers, setExcludedTeachers] = useState([]);
   const [defaultCapacity, setDefaultCapacity] = useState(2); 
-  const [currentDay, setCurrentDay] = useState('Day 1');
   const [schedule, setSchedule] = useState({});
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [draggedTeacher, setDraggedTeacher] = useState(null);
+  const [selectedClassInfo, setSelectedClassInfo] = useState(null);
+  
+  // Real Teacher Data State
+  const [teacherList, setTeacherList] = useState([]); // Array of names
+  const [teacherOriginalLoads, setTeacherOriginalLoads] = useState({}); // { name: { 'Day 1': 5, ... } }
+  const [teacherSubjects, setTeacherSubjects] = useState({}); // { name: ['Chi', 'Eng'] }
+  const [classTeacherInfo, setClassTeacherInfo] = useState({}); // { '1A': { head: '...', subjects: [...] } }
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // Initialize
+  // Firestore Sync - Load Data
+  useEffect(() => {
+    if (!user) return;
+    // Updated Path to ensure 6 segments (even number) for Document Reference
+    // artifacts/{appId}/public/data/teachers/list
+    const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.teacherList && data.teacherList.length > 0) {
+          console.log("Loaded teacher data from cloud");
+          setTeacherList(data.teacherList);
+          setTeacherOriginalLoads(data.teacherOriginalLoads || {});
+          setTeacherSubjects(data.teacherSubjects || {});
+          setClassTeacherInfo(data.classTeacherInfo || {});
+          setIsDataLoaded(true);
+        }
+      }
+    });
+    return () => unsub();
+  }, [user]);
+
+  // CSV Parsing Logic
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target.result;
+      const lines = text.split('\n').filter(l => l.trim());
+      
+      const newTeacherList = [];
+      const newSubjects = {};
+      const newLoads = {};
+      const newClassInfo = {};
+
+      // Initialize structures
+      ALL_CLASSES.forEach(cls => newClassInfo[cls] = { head: '待定', subjects: [] });
+
+      for (let i = 2; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim());
+        const jobTitle = cols[0];
+        const name = cols[1];
+        
+        if (!name) continue; 
+
+        newTeacherList.push(name);
+        if (!newSubjects[name]) newSubjects[name] = []; // Initialize array
+        newLoads[name] = {};
+
+        let dailyLoadCount = {};
+
+        for (let j = 3; j < cols.length; j++) {
+          const content = cols[j];
+          if (content) {
+            const parts = content.split(' ');
+            if (parts.length >= 2) {
+              const cls = parts[0];
+              const subj = parts[1];
+              
+              if (!newSubjects[name].includes(subj)) newSubjects[name].push(subj);
+
+              if (newClassInfo[cls]) {
+                newClassInfo[cls].subjects.push({ subject: subj, teacher: name });
+                if (newClassInfo[cls].head === '待定') newClassInfo[cls].head = name; 
+              }
+
+              const periodsPerDayInCSV = 9; 
+              const dayIndex = Math.floor((j - 3) / periodsPerDayInCSV) + 1;
+              const dayKey = `Day ${dayIndex}`;
+              dailyLoadCount[dayKey] = (dailyLoadCount[dayKey] || 0) + 1;
+            }
+          }
+        }
+        newLoads[name] = dailyLoadCount;
+      }
+
+      const sortedTeachers = newTeacherList.sort();
+      setTeacherList(sortedTeachers);
+      setTeacherSubjects(newSubjects);
+      setTeacherOriginalLoads(newLoads);
+      setClassTeacherInfo(newClassInfo);
+      setIsDataLoaded(true);
+
+      if (user) {
+        try {
+          // Updated Path to ensure 6 segments
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), {
+            teacherList: sortedTeachers,
+            teacherSubjects: newSubjects,
+            teacherOriginalLoads: newLoads,
+            classTeacherInfo: newClassInfo,
+            updatedAt: new Date().toISOString()
+          });
+          alert(`成功匯入 ${sortedTeachers.length} 位教師資料並儲存至雲端！`);
+        } catch (err) {
+          console.error("Cloud save failed:", err);
+          alert("雲端儲存失敗，僅更新本地顯示。");
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const activeTeacherList = isDataLoaded ? teacherList : []; 
+  
   useEffect(() => {
     setSchedule(prev => {
       const nextSchedule = { ...prev };
-      STAFFING_DAYS.forEach(day => {
-        if (!nextSchedule[day]) {
-          nextSchedule[day] = [];
-          ALL_CLASSES.forEach(cls => {
-            STAFFING_PERIODS.forEach(p => {
-              nextSchedule[day].push({ classId: cls, period: p, teachers: [], capacity: defaultCapacity });
-            });
+      for (let d = 1; d <= config.daysCount; d++) {
+        const dayKey = `Day ${d}`;
+        if (!nextSchedule[dayKey]) {
+          nextSchedule[dayKey] = [];
+          ALL_CLASSES.filter(c => config.selectedGrades.includes('P'+c.charAt(0))).forEach(cls => {
+            for (let p = 1; p <= config.periodsCount; p++) {
+              nextSchedule[dayKey].push({ classId: cls, period: p, teachers: [], capacity: defaultCapacity });
+            }
           });
-        } else {
-          // Update capacity only, preserve teachers
-          nextSchedule[day] = nextSchedule[day].map(slot => ({ ...slot, capacity: defaultCapacity }));
         }
-      });
+      }
       return nextSchedule;
     });
-  }, [defaultCapacity]);
+  }, [config, defaultCapacity]);
 
   const toggleSlotCapacity = (classId, period) => {
     setSchedule(prev => {
-      const daySchedule = [...(prev[currentDay] || [])];
+      const daySchedule = [...(prev[activeDay] || [])];
       const slotIndex = daySchedule.findIndex(s => s.classId === classId && s.period === period);
       if (slotIndex >= 0) {
         const newCap = daySchedule[slotIndex].capacity === 1 ? 2 : 1;
         daySchedule[slotIndex] = { ...daySchedule[slotIndex], capacity: newCap };
       }
-      return { ...prev, [currentDay]: daySchedule };
+      return { ...prev, [activeDay]: daySchedule };
     });
   };
 
-  const getTeacherLoadForDay = (teacherName, day, currentSchedule) => {
-    let count = 0;
-    currentSchedule.forEach(slot => { if (slot.teachers.includes(teacherName)) count++; });
-    return count;
+  const handleCellClick = (classId) => {
+    const info = classTeacherInfo[classId] || { head: 'N/A', subjects: [] };
+    setSelectedClassInfo({ id: classId, info });
   };
 
   const handleAutoAssign = () => {
-    if(!window.confirm(`確定執行「智能一鍵編配」嗎？\n(優先科任 -> 班主任 -> 負載平衡)`)) return;
-    const newSchedule = { ...schedule };
-    const dayAssignments = [...(newSchedule[currentDay] || [])];
+    if (!isDataLoaded) { alert("請先上載教師 CSV 資料！"); return; }
     
+    const daySchedule = schedule[activeDay] || [];
+    const totalSlotsNeeded = daySchedule.reduce((acc, slot) => acc + slot.capacity, 0);
+    const totalTeachers = activeTeacherList.length;
+    const baselineLoad = Math.ceil(totalSlotsNeeded / totalTeachers) || 1;
+
+    if(!window.confirm(`智能編配 (V5.2)\n\n當日人次: ${totalSlotsNeeded}\n可用教師: ${totalTeachers}\n基準線: ~${baselineLoad} 節/人`)) return;
+
+    const newSchedule = { ...schedule };
+    const dayAssignments = [...(newSchedule[activeDay] || [])];
+    
+    const currentLoad = {};
+    activeTeacherList.forEach(t => currentLoad[t] = 0);
+    dayAssignments.forEach(slot => slot.teachers.forEach(t => currentLoad[t] = (currentLoad[t]||0) + 1));
+
     dayAssignments.forEach(slot => {
       const needed = slot.capacity - slot.teachers.length;
       if (needed <= 0) return;
-      const isActivitySlot = slot.period === 3 || slot.period === 4;
-      const requiredSubject = isActivitySlot ? 'VA' : 'General';
-      let candidates = [];
 
-      MASTER_TEACHER_LIST.forEach(tName => {
-        if (excludedTeachers.includes(tName)) return;
-        if (slot.teachers.includes(tName)) return; 
-        const isBusy = dayAssignments.some(s => s.period === slot.period && s.teachers.includes(tName) && s.classId !== slot.classId);
-        if (isBusy) return;
+      let candidates = activeTeacherList.map(tName => {
+        if (slot.teachers.includes(tName)) return null;
+        const isBusy = dayAssignments.some(s => s.period === slot.period && s.teachers.includes(tName));
+        if (isBusy) return null;
 
-        let score = 0;
-        if (requiredSubject === 'VA' && TEACHER_SUBJECTS[tName]?.includes('VA')) score += 50; 
-        if (CLASS_TEACHERS_MOCK[slot.classId]?.includes(tName)) score += 30;
-        const originalLoad = TEACHER_ORIGINAL_LOADS[tName]?.[currentDay] || 0;
-        const currentLoad = getTeacherLoadForDay(tName, currentDay, dayAssignments);
-        if (currentLoad < originalLoad) score += 10; else score -= 10;
-        candidates.push({ name: tName, score });
-      });
+        let score = 100;
+        if (currentLoad[tName] >= baselineLoad) score -= 50;
+        
+        const tInfo = classTeacherInfo[slot.classId];
+        if (tInfo) {
+          if (tInfo.head === tName) score += 30;
+          if (tInfo.subjects.some(s => s.teacher === tName)) score += 15;
+        }
+
+        return { name: tName, score };
+      }).filter(Boolean);
+
       candidates.sort((a, b) => b.score - a.score);
       const toAdd = candidates.slice(0, needed).map(c => c.name);
+      
+      toAdd.forEach(t => currentLoad[t]++);
       slot.teachers = [...slot.teachers, ...toAdd];
     });
-    setSchedule({ ...newSchedule, [currentDay]: dayAssignments });
+    setSchedule({ ...newSchedule, [activeDay]: dayAssignments });
   };
 
-  const handleDragStart = (e, name, classId, period) => {
-    setDraggedTeacher({ name, fromClass: classId, fromPeriod: period });
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
+  const handleDragStart = (e, name, classId, period) => { setDraggedTeacher({ name, fromClass: classId, fromPeriod: period }); e.dataTransfer.effectAllowed = "move"; };
+  const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
   const handleDrop = (e, targetClassId, targetPeriod) => {
     e.preventDefault();
     if (!draggedTeacher) return;
     const { name, fromClass, fromPeriod } = draggedTeacher;
     if (fromClass === targetClassId && fromPeriod === targetPeriod) return;
-
     setSchedule(prev => {
-      const dayAssignments = [...(prev[currentDay] || [])];
-      // Remove from source
+      const dayAssignments = [...(prev[activeDay] || [])];
       const sourceSlotIdx = dayAssignments.findIndex(s => s.classId === fromClass && s.period === fromPeriod);
-      if (sourceSlotIdx >= 0) {
-        dayAssignments[sourceSlotIdx] = { ...dayAssignments[sourceSlotIdx], teachers: dayAssignments[sourceSlotIdx].teachers.filter(t => t !== name) };
-      }
-      // Add to target
+      if (sourceSlotIdx >= 0) dayAssignments[sourceSlotIdx] = { ...dayAssignments[sourceSlotIdx], teachers: dayAssignments[sourceSlotIdx].teachers.filter(t => t !== name) };
       const targetSlotIdx = dayAssignments.findIndex(s => s.classId === targetClassId && s.period === targetPeriod);
-      if (targetSlotIdx >= 0) {
-        const targetSlot = dayAssignments[targetSlotIdx];
-        if (!targetSlot.teachers.includes(name)) {
-           dayAssignments[targetSlotIdx] = { ...targetSlot, teachers: [...targetSlot.teachers, name] };
-        }
+      if (targetSlotIdx >= 0 && !dayAssignments[targetSlotIdx].teachers.includes(name)) {
+         dayAssignments[targetSlotIdx] = { ...dayAssignments[targetSlotIdx], teachers: [...dayAssignments[targetSlotIdx].teachers, name] };
       }
-      return { ...prev, [currentDay]: dayAssignments };
+      return { ...prev, [activeDay]: dayAssignments };
     });
     setDraggedTeacher(null);
   };
-
   const handleRemoveDrop = (e) => {
     e.preventDefault();
     if (!draggedTeacher) return;
     const { name, fromClass, fromPeriod } = draggedTeacher;
     setSchedule(prev => {
-      const dayAssignments = [...(prev[currentDay] || [])];
+      const dayAssignments = [...(prev[activeDay] || [])];
       const sourceSlotIdx = dayAssignments.findIndex(s => s.classId === fromClass && s.period === fromPeriod);
-      if (sourceSlotIdx >= 0) {
-        dayAssignments[sourceSlotIdx] = {
-          ...dayAssignments[sourceSlotIdx],
-          teachers: dayAssignments[sourceSlotIdx].teachers.filter(t => t !== name)
-        };
-      }
-      return { ...prev, [currentDay]: dayAssignments };
+      if (sourceSlotIdx >= 0) dayAssignments[sourceSlotIdx] = { ...dayAssignments[sourceSlotIdx], teachers: dayAssignments[sourceSlotIdx].teachers.filter(t => t !== name) };
+      return { ...prev, [activeDay]: dayAssignments };
     });
     setDraggedTeacher(null);
   };
 
-  const teacherLoad = useMemo(() => {
-    const counts = {};
-    Object.values(schedule).forEach(dayList => {
-       dayList.forEach(slot => { slot.teachers.forEach(t => { counts[t] = (counts[t] || 0) + 1; }); });
-    });
-    return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count);
-  }, [schedule]);
-
   const statsData = useMemo(() => {
     const data = [];
-    const currentAssignments = schedule[currentDay] || [];
-    MASTER_TEACHER_LIST.forEach(tName => {
-      const original = TEACHER_ORIGINAL_LOADS[tName]?.[currentDay] || 0;
-      const current = getTeacherLoadForDay(tName, currentDay, currentAssignments);
-      if (original > 0 || current > 0) data.push({ name: tName, original, current });
+    const currentAssignments = schedule[activeDay] || [];
+    const totalSlots = currentAssignments.reduce((acc, slot) => acc + slot.capacity, 0);
+    const totalT = activeTeacherList.length || 1;
+    const baseline = Math.ceil(totalSlots / totalT);
+
+    activeTeacherList.forEach(tName => {
+      let current = 0;
+      currentAssignments.forEach(slot => { if (slot.teachers.includes(tName)) current++; });
+      if (current > 0) data.push({ name: tName, current, baseline });
     });
     return data.sort((a, b) => b.current - a.current);
-  }, [schedule, currentDay]);
+  }, [schedule, activeDay, activeTeacherList]);
 
   const handleClearDay = () => {
-    if(!window.confirm("確定要清空當天的所有人手編排嗎？")) return;
-    setSchedule(prev => ({ ...prev, [currentDay]: prev[currentDay].map(slot => ({ ...slot, teachers: [] })) }));
+    if(!window.confirm("確定清空？")) return;
+    setSchedule(prev => ({ ...prev, [activeDay]: prev[activeDay].map(slot => ({ ...slot, teachers: [] })) }));
   };
 
-  const toggleLevel = (lvl) => setSelectedLevels(prev => prev.includes(lvl) ? prev.filter(l => l !== lvl) : [...prev, lvl]);
-  const toggleExcludedTeacher = (t) => setExcludedTeachers(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  const filteredClasses = ALL_CLASSES.filter(c => config.selectedGrades.includes('P'+c.charAt(0)));
 
   return (
-    <div className="h-full flex flex-col animate-fadeIn bg-slate-50 relative overflow-hidden">
-      {/* Top Controls Bar */}
+    <div className="h-full flex flex-col bg-slate-50 relative overflow-hidden">
+      {/* Top Controls */}
       <div className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm z-20 flex-shrink-0">
         <div className="flex items-center gap-4">
-           <button onClick={() => setShowConfig(!showConfig)} className={`p-2 rounded-lg border transition-colors ${showConfig ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 hover:bg-slate-100'}`} title="顯示/隱藏設定"><Settings size={20} /></button>
+           <button onClick={() => setShowConfig(!showConfig)} className={`p-2 rounded-lg border transition-colors ${showConfig ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Settings size={20} /></button>
            <div className="flex bg-slate-100 p-1 rounded-lg">
-             {STAFFING_DAYS.map(d => (
-               <button key={d} onClick={() => setCurrentDay(d)} className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${currentDay === d ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>{d}</button>
+             {Array.from({length: config.daysCount}, (_, i) => `Day ${i+1}`).map(d => (
+               <button key={d} onClick={() => setActiveDay(d)} className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${activeDay === d ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>{d}</button>
              ))}
            </div>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => setShowStatsModal(true)} className="flex items-center gap-2 px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-sm font-bold transition-colors"><BarChart size={18}/> 實時統計</button>
-          <button onClick={handleAutoAssign} className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg text-sm font-bold hover:shadow-lg hover:from-indigo-700 hover:to-blue-700 transition-all active:scale-95"><Cpu size={18}/> 智能編配</button>
-          <button onClick={handleClearDay} className="flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-bold transition-colors"><Trash2 size={18}/> 清空</button>
+          <button onClick={() => setShowStatsModal(true)} className="flex items-center gap-2 px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-sm font-bold"><BarChart size={18}/> 統計</button>
+          <button onClick={handleAutoAssign} disabled={!isDataLoaded} className={`flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg text-sm font-bold hover:shadow-lg transition-all active:scale-95 ${!isDataLoaded ? 'opacity-50 cursor-not-allowed' : ''}`}><Cpu size={18}/> 智能編配</button>
+          <button onClick={handleClearDay} className="flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-bold"><Trash2 size={18}/> 清空</button>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Config */}
+        {/* Left Sidebar */}
         {showConfig && (
-          <div className="w-80 bg-white border-r flex-shrink-0 shadow-lg z-10 flex flex-col h-full">
-             <div className="flex-1 overflow-y-auto p-5">
-               <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-lg"><Filter size={20} className="text-indigo-500"/> 設定與篩選</h3>
-               
-               <div className="mb-8">
-                 <label className="text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">顯示年級</label>
-                 <div className="grid grid-cols-3 gap-2">
-                   {STAFFING_LEVELS.map(lvl => (
-                     <button key={lvl} onClick={() => toggleLevel(lvl)} className={`py-2 text-xs font-bold rounded-md border transition-all ${selectedLevels.includes(lvl) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{lvl}</button>
-                   ))}
-                 </div>
-               </div>
+          <div className="w-72 bg-white border-r flex-shrink-0 shadow-lg z-10 flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto p-5">
+                <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Filter size={20} className="text-indigo-500"/> 設定與資料</h3>
+                
+                {/* CSV Upload Section */}
+                <div className="mb-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <label className="text-xs font-bold text-indigo-700 mb-2 block flex items-center gap-2 uppercase tracking-wider"><Upload size={14}/> 匯入教師資料 (CSV)</label>
+                  <input type="file" accept=".csv" onChange={handleFileUpload} className="block w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700"/>
+                  <div className="mt-2 flex items-center gap-2 text-[10px] text-indigo-600 font-bold">
+                    {isDataLoaded ? <><CheckCircle size={12}/> 資料已載入: {activeTeacherList.length} 位教師</> : <span className="text-slate-400">請上載 "總教師時間表.csv"</span>}
+                  </div>
+                </div>
 
-               <div className="mb-8">
-                 <label className="text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">全域預設人手</label>
-                 <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                   <UserMinus size={18} className="text-slate-400"/>
-                   <input type="range" min="1" max="3" step="1" value={defaultCapacity} onChange={(e) => setDefaultCapacity(parseInt(e.target.value))} className="flex-1 accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"/>
-                   <span className="font-bold text-indigo-600 text-lg w-6 text-center">{defaultCapacity}</span>
-                 </div>
-               </div>
+                <div className="mb-6">
+                  <label className="text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">預設人手 (Capacity)</label>
+                  <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <UserMinus size={18} className="text-slate-400"/>
+                    <input type="range" min="1" max="4" step="1" value={defaultCapacity} onChange={(e) => setDefaultCapacity(parseInt(e.target.value))} className="flex-1 accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"/>
+                    <span className="font-bold text-indigo-600 text-lg w-6 text-center">{defaultCapacity}</span>
+                  </div>
+                </div>
 
-               <div className="mb-8">
-                 <label className="text-xs font-bold text-slate-400 mb-3 block uppercase tracking-wider">排除教師 (請假)</label>
-                 <div className="max-h-[200px] overflow-y-auto pr-1 space-y-1">
-                   {MASTER_TEACHER_LIST.map(t => (
-                     <div key={t} onClick={() => toggleExcludedTeacher(t)} className={`flex items-center gap-3 text-sm p-2 rounded-lg cursor-pointer transition-colors ${excludedTeachers.includes(t) ? 'bg-red-50 text-red-600' : 'hover:bg-slate-50 text-slate-700'}`}>
-                       <div className={`w-4 h-4 rounded border flex items-center justify-center ${excludedTeachers.includes(t) ? 'bg-red-500 border-red-500' : 'border-slate-300 bg-white'}`}>{excludedTeachers.includes(t) && <X size={12} className="text-white"/>}</div>{t}
-                     </div>
-                   ))}
-                 </div>
-               </div>
+                <div onDragOver={handleDragOver} onDrop={handleRemoveDrop} className="border-2 border-dashed border-red-200 bg-red-50 rounded-xl p-4 flex flex-col items-center justify-center text-red-400 transition-colors cursor-default mb-6">
+                  <Trash2 size={24} className="mb-2"/>
+                  <span className="text-xs font-bold">拖曳至此移除老師</span>
+                </div>
 
-               <div onDragOver={handleDragOver} onDrop={handleRemoveDrop} className={`border-2 border-dashed border-red-200 bg-red-50 rounded-xl p-4 flex flex-col items-center justify-center text-red-400 transition-colors cursor-default ${draggedTeacher ? 'bg-red-100 border-red-400 scale-105 shadow-inner' : ''}`}>
-                 <Trash2 size={24} className="mb-2"/>
-                 <span className="text-xs font-bold">拖曳教師至此移除</span>
-               </div>
-             </div>
-
-             {/* Bottom Left Stats (Clickable) */}
-             <div className="p-4 border-t bg-slate-50 cursor-pointer hover:bg-indigo-50 transition-colors group h-48 flex flex-col" onClick={() => setShowStatsModal(true)}>
-               <div className="flex justify-between items-center mb-2">
-                 <h4 className="font-bold text-xs text-slate-500 group-hover:text-indigo-600 flex items-center gap-2"><BarChart size={14}/> 實時工作量 Top 5</h4>
-                 <span className="text-[10px] text-indigo-400 font-bold group-hover:underline">點擊放大</span>
-               </div>
-               <div className="flex-1 overflow-hidden">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <RechartBar data={statsData.slice(0, 5)} layout="vertical" margin={{top:0, left:0, right:30, bottom:0}} barSize={10}>
-                     <XAxis type="number" hide/>
-                     <YAxis dataKey="name" type="category" width={50} tick={{fontSize: 10}} interval={0}/>
-                     <Bar dataKey="current" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                   </RechartBar>
-                 </ResponsiveContainer>
-               </div>
+                <div className="border-t pt-4">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><BookOpen size={14}/> 班級師資資訊</h4>
+                  {selectedClassInfo ? (
+                    <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100 animate-fadeIn">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xl font-black text-indigo-800">{selectedClassInfo.id}</span>
+                        <span className="text-xs bg-white px-2 py-1 rounded border border-indigo-200 text-indigo-600 font-bold">班主任: {selectedClassInfo.info.head}</span>
+                      </div>
+                      <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                        {selectedClassInfo.info.subjects.map((s, i) => (
+                          <div key={i} className="flex justify-between text-xs border-b border-indigo-100 last:border-0 py-1">
+                            <span className="text-slate-500">{s.subject}</span>
+                            <span className="font-bold text-slate-700">{s.teacher}</span>
+                          </div>
+                        ))}
+                        {selectedClassInfo.info.subjects.length === 0 && <span className="text-xs text-slate-400 italic">暫無資料</span>}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center text-slate-400 text-xs py-4 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      點擊右側課節<br/>查看該班任教老師
+                    </div>
+                  )}
+                </div>
              </div>
           </div>
         )}
 
-        {/* Main Grid - Optimized for 1080p */}
+        {/* Main Grid */}
         <div className="flex-1 overflow-auto bg-slate-100/50 p-6">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-w-[1200px]"> 
-             <div className="grid grid-cols-[100px_repeat(6,1fr)] bg-slate-50/80 backdrop-blur border-b sticky top-0 z-10">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-w-[1000px]"> 
+             <div className="grid bg-slate-50/80 backdrop-blur border-b sticky top-0 z-10" style={{ gridTemplateColumns: `80px repeat(${config.periodsCount}, 1fr)` }}>
                <div className="p-4 text-center text-xs font-bold text-slate-500 uppercase border-r flex items-center justify-center">班別</div>
-               {STAFFING_PERIODS.map(p => (
+               {Array.from({length: config.periodsCount}, (_, i) => i+1).map(p => (
                  <div key={p} className="p-4 text-center border-r last:border-r-0"><div className="text-xs font-bold text-slate-500 mb-1">第 {p} 節</div></div>
                ))}
              </div>
              <div className="divide-y divide-slate-100">
-               {ALL_CLASSES.filter(c => selectedLevels.includes('P'+c.charAt(0))).map(cls => (
-                 <div key={cls} className="grid grid-cols-[100px_repeat(6,1fr)] hover:bg-slate-50/50 transition-colors group/row">
+               {filteredClasses.map(cls => (
+                 <div key={cls} className="grid hover:bg-slate-50/50 transition-colors group/row" style={{ gridTemplateColumns: `80px repeat(${config.periodsCount}, 1fr)` }}>
                    <div className="p-2 font-bold text-slate-700 border-r flex items-center justify-center bg-slate-50/30 text-lg">{cls}</div>
-                   {STAFFING_PERIODS.map(p => {
-                     const slot = schedule[currentDay]?.find(s => s.classId === cls && s.period === p);
+                   {Array.from({length: config.periodsCount}, (_, i) => i+1).map(p => {
+                     const slot = schedule[activeDay]?.find(s => s.classId === cls && s.period === p);
                      if (!slot) return <div key={p} className="border-r bg-slate-50/20"></div>;
                      return (
-                       <div key={p} className={`border-r p-1 last:border-r-0 min-h-[60px] relative transition-all ${draggedTeacher ? 'bg-indigo-50/30 border-dashed border-indigo-200' : ''}`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, cls, p)}>
+                       <div 
+                         key={p} 
+                         className={`border-r p-1 last:border-r-0 min-h-[80px] relative transition-all cursor-pointer ${selectedClassInfo?.id === cls ? 'bg-indigo-50/20' : ''}`}
+                         onClick={() => handleCellClick(cls)} 
+                         onDragOver={handleDragOver} 
+                         onDrop={(e) => handleDrop(e, cls, p)}
+                       >
                          <div className="flex flex-wrap gap-1 content-start h-full pb-6">
                            {slot.teachers.map((t, i) => (
                              <div key={i} draggable onDragStart={(e) => handleDragStart(e, t, cls, p)} className="cursor-grab active:cursor-grabbing flex items-center gap-1.5 text-xs bg-white text-slate-700 pl-2 pr-1 py-1 rounded-md border border-slate-200 shadow-sm hover:shadow hover:border-indigo-300 hover:text-indigo-600 transition-all select-none">
                                <span className="font-bold">{t}</span><GripHorizontal size={12} className="text-slate-300" />
                              </div>
                            ))}
-                           {slot.teachers.length === 0 && <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 text-xs italic pointer-events-none"><span>拖放至此</span></div>}
                          </div>
                          <div className="absolute bottom-0.5 right-0.5 flex gap-1">
-                           <button onClick={() => toggleSlotCapacity(cls, p)} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-100/80 hover:bg-slate-200 rounded text-[9px] text-slate-500 font-bold transition-colors border border-slate-200">目標: {slot.capacity}</button>
+                           <button onClick={(e) => {e.stopPropagation(); toggleSlotCapacity(cls, p)}} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-100/80 hover:bg-slate-200 rounded text-[9px] text-slate-500 font-bold transition-colors border border-slate-200">目標: {slot.capacity}</button>
                          </div>
                        </div>
                      );
@@ -418,7 +729,7 @@ const StaffingSystem = () => {
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden animate-scaleIn">
             <div className="p-6 border-b flex justify-between items-center bg-slate-50">
-              <div><h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><BarChart className="text-indigo-600" /> 人手編配統計中心 (複合分析)</h2><p className="text-slate-500 mt-1 flex items-center gap-2"><span className="w-3 h-3 bg-slate-400 rounded-sm inline-block"></span> 原定節數 (Baseline) <span className="text-slate-300">|</span><span className="w-3 h-3 bg-indigo-600 rounded-sm inline-block"></span> 現時編配 (Current)</p></div>
+              <div><h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><BarChart className="text-indigo-600" /> 人手編配統計 (V5 基準)</h2></div>
               <button onClick={() => setShowStatsModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24} className="text-slate-500" /></button>
             </div>
             <div className="flex-1 p-8 overflow-hidden flex flex-col">
@@ -430,14 +741,13 @@ const StaffingSystem = () => {
                     <YAxis tick={{fontSize: 12, fill: '#64748b'}} />
                     <Tooltip cursor={{fill: 'rgba(99, 102, 241, 0.05)'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}/>
                     <Legend verticalAlign="top" height={36}/>
-                    <Bar dataKey="original" name="原定節數 (Original)" fill="#94a3b8" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Bar dataKey="baseline" name="智能基準線 (Baseline)" fill="#cbd5e1" radius={[4, 4, 0, 0]} barSize={20} />
                     <Bar dataKey="current" name="現時編配 (Current)" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20}>
-                       {statsData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.current > entry.original + 2 ? '#ef4444' : '#4f46e5'} />))}
+                       {statsData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.current > entry.baseline + 2 ? '#ef4444' : '#4f46e5'} />))}
                     </Bar>
                   </RechartBar>
                 </ResponsiveContainer>
               </div>
-              <p className="text-center text-sm text-slate-500 mt-6 bg-yellow-50 p-2 rounded-lg border border-yellow-100 inline-block mx-auto"><span className="text-yellow-600 font-bold">💡 提示：</span> 紅色柱狀代表該教師工作量已超過原定節數 2 節以上，建議進行人手調整。</p>
             </div>
           </div>
         </div>
@@ -446,70 +756,30 @@ const StaffingSystem = () => {
   );
 };
 
-// ==========================================
-// SECTION 3: MAIN APP COMPONENT
-// ==========================================
-
+// --- 3.0 Main App ---
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Default open
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
-  // Dummy AI Design Component
-  const AiDesignView = () => {
-    const [aiPrompt, setAiPrompt] = useState('');
-    const [aiResponse, setAiResponse] = useState('');
-    const [isGenerating, setIsGenerating] = useState(false);
-    const handleAiGenerate = () => {
-      if (!aiPrompt) return;
-      setIsGenerating(true);
-      setTimeout(() => {
-        setAiResponse(`【AI 建議方案】\n針對：「${aiPrompt}」\n活動：AR 綠色尋寶\n5C+：協作、慎思明辨\nAGILE：數位適應性`);
-        setIsGenerating(false);
-      }, 1000);
-    };
-    return (
-      <div className="h-full p-6 flex flex-col bg-slate-50">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-full flex flex-col p-6">
-          <h2 className="text-xl font-bold flex items-center gap-2 mb-4 text-indigo-800"><Brain /> AI 課程設計顧問</h2>
-          <div className="flex-1 bg-slate-50 rounded-lg p-4 mb-4 overflow-y-auto border border-slate-100">
-            {aiResponse ? <pre className="whitespace-pre-wrap text-slate-700">{aiResponse}</pre> : <div className="text-slate-400 text-center mt-20">請輸入課程主題...</div>}
-          </div>
-          <div className="flex gap-2">
-            <input type="text" placeholder="輸入指令..." className="flex-1 border rounded-lg px-4 py-2" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} />
-            <button onClick={handleAiGenerate} disabled={isGenerating} className="bg-indigo-600 text-white px-6 py-2 rounded-lg">{isGenerating ? '...' : '生成'}</button>
-          </div>
-        </div>
-      </div>
-    );
+  // System State
+  const [isSystemStarted, setIsSystemStarted] = useState(false);
+  const [sysConfig, setSysConfig] = useState(null);
+  const [activeDay, setActiveDay] = useState('Day 1');
+  
+  // Auth State
+  const user = useAuth();
+
+  const handleWizardComplete = (config) => {
+    setSysConfig(config);
+    setIsSystemStarted(true);
   };
 
-  // Dashboard View
-  const DashboardView = () => (
-    <div className="h-full overflow-y-auto p-8 bg-slate-50">
-      <div className="max-w-[1600px] mx-auto space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h3 className="text-gray-500 text-sm font-semibold mb-4 flex items-center gap-2"><Target size={16}/> 5C+ 核心元素</h3>
-            <div className="space-y-3">{FIVE_C_PLUS.map(item => (<div key={item.code} className="flex justify-between text-sm"><span className="text-slate-600">{item.label}</span><div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full ${item.color.split(' ')[0].replace('bg-', 'bg-')}`} style={{width: '60%'}}></div></div></div>))}</div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h3 className="text-gray-500 text-sm font-semibold mb-4 flex items-center gap-2"><Cpu size={16}/> AGILE 技能</h3>
-            <div className="flex flex-wrap gap-2">{AGILE_SKILLS.map(skill => (<span key={skill} className="px-3 py-1 bg-cyan-50 text-cyan-700 text-xs rounded-lg border border-cyan-100">{skill}</span>))}</div>
-          </div>
-          <div className="bg-gradient-to-br from-orange-400 to-pink-500 p-8 rounded-2xl shadow-lg text-white flex flex-col justify-between"><h3 className="font-semibold opacity-90">距離活動開始</h3><p className="text-5xl font-bold">10 天</p><p className="text-sm opacity-90 mt-2">1月19日</p></div>
-        </div>
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Calendar className="text-indigo-600" /> 課程統整周流程</h3></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">{INITIAL_SCHEDULE.map(day => (<div key={day.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100"><h4 className="font-bold text-slate-800">{day.day}</h4><p className="text-sm text-indigo-600 mb-2">{day.theme}</p><ul className="space-y-1">{day.activities.map((act,i)=><li key={i} className="text-xs text-slate-500 truncate">• {act.title}</li>)}</ul></div>))}</div>
-        </div>
-      </div>
-    </div>
-  );
+  if (!isSystemStarted) {
+    return <SetupWizard onComplete={handleWizardComplete} />;
+  }
 
   return (
     <div className="h-screen bg-slate-50 font-sans text-slate-900 flex overflow-hidden">
-      
-      {/* 1. COLLAPSIBLE SIDEBAR */}
       <nav className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-white border-r flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col relative z-30`}>
         <div className="p-4 border-b flex items-center gap-2 bg-indigo-900 text-white h-16">
           <Brain className="flex-shrink-0" />
@@ -517,16 +787,19 @@ const App = () => {
         </div>
         <div className="flex-1 overflow-y-auto py-4 space-y-1">
           <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Layout size={20} /><span className="truncate">總覽儀表板</span></button>
-          <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'staff' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Users size={20} /><span className="truncate">人手與資源分配</span></button>
+          <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'staff' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Users size={20} /><span className="truncate">人手分配</span></button>
+          <button onClick={() => setActiveTab('venue')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'venue' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><MapPin size={20} /><span className="truncate">地點分配</span></button>
           <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'ai-design' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Cpu size={20} /><span className="truncate">AI 課程設計</span></button>
-          <button onClick={() => setActiveTab('export')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'export' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Share2 size={20} /><span className="truncate">發布與報告</span></button>
         </div>
-        <div className="p-4 border-t text-xs text-slate-400 text-center">V4.1 Ultimate</div>
+        <div className="p-4 border-t text-xs text-slate-400 text-center flex flex-col items-center gap-1">
+          <span>V5.2 Cloud</span>
+          <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}>
+            <Cloud size={10} /> {user ? 'Online' : 'Offline'}
+          </span>
+        </div>
       </nav>
 
-      {/* 2. MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        {/* Header Bar with Toggle */}
         <header className="bg-white h-16 border-b px-4 flex items-center justify-between shadow-sm z-20 flex-shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
@@ -535,29 +808,26 @@ const App = () => {
             <h1 className="text-lg font-bold text-slate-800 truncate">
               {activeTab === 'dashboard' && '總覽儀表板'}
               {activeTab === 'staff' && '智能人手編配系統'}
+              {activeTab === 'venue' && `地點與場地分配 (${activeDay})`}
               {activeTab === 'ai-design' && 'AI 課程設計助手'}
-              {activeTab === 'export' && '總編輯控制台'}
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100">正覺蓮社學校</div>
+            <div className="bg-slate-100 p-1 rounded-lg flex items-center">
+               <span className="text-xs font-bold text-slate-400 px-2 uppercase">Global Day:</span>
+               <select value={activeDay} onChange={(e) => setActiveDay(e.target.value)} className="bg-transparent text-sm font-bold text-indigo-700 outline-none">
+                 {Array.from({length: sysConfig.daysCount}, (_, i) => `Day ${i+1}`).map(d => <option key={d} value={d}>{d}</option>)}
+               </select>
+            </div>
             <div className="w-8 h-8 bg-indigo-900 rounded-full flex items-center justify-center text-white text-xs font-bold">陳</div>
           </div>
         </header>
 
-        {/* Content Body */}
         <div className="flex-1 overflow-hidden relative bg-slate-50">
-          {activeTab === 'dashboard' && <DashboardView />}
-          {activeTab === 'staff' && <StaffingSystem />}
+          {activeTab === 'dashboard' && <DashboardView config={sysConfig} />}
+          {activeTab === 'staff' && <StaffingSystem config={sysConfig} activeDay={activeDay} setActiveDay={setActiveDay} user={user} />}
+          {activeTab === 'venue' && <VenueAllocationSystem config={sysConfig} activeDay={activeDay} />}
           {activeTab === 'ai-design' && <AiDesignView />}
-          {activeTab === 'export' && (
-            <div className="h-full p-8 flex items-center justify-center text-slate-400">
-              <div className="text-center">
-                <Share2 size={48} className="mx-auto mb-4 opacity-20"/>
-                <p>總編輯功能模組 (參考 V3.6 代碼)</p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
