@@ -35,7 +35,8 @@ import {
   Calculator,
   Briefcase,
   UserX,
-  Layers
+  Layers,
+  Undo2
 } from 'lucide-react';
 import { 
   BarChart as RechartBar, 
@@ -143,13 +144,10 @@ const useAuth = () => {
 const SUBJECT_ORDER = ['中文', '英文', '數學', '常識', '科學', '人文', '視藝', '音樂', '體育', '普通話', '科技', '綜合課', '導修'];
 
 const sortSubjects = (subjects: any[]) => {
-  // Remove duplicates based on subject name + teacher name
   const unique = subjects.filter((v, i, a) => a.findIndex(t => (t.subject === v.subject && t.teacher === v.teacher)) === i);
-  
   return unique.sort((a, b) => {
     const idxA = SUBJECT_ORDER.findIndex(k => a.subject.includes(k));
     const idxB = SUBJECT_ORDER.findIndex(k => b.subject.includes(k));
-    // If not found in list, put at end
     const rankA = idxA === -1 ? 999 : idxA;
     const rankB = idxB === -1 ? 999 : idxB;
     return rankA - rankB;
@@ -200,8 +198,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.8</span></h1>
-          <p className="text-slate-500 font-medium">Auto-Balance • Job Weights • Smart Pool</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.9</span></h1>
+          <p className="text-slate-500 font-medium">Smart Pool Sidebar • Return to Pool • Cloud Sync</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -421,7 +419,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   
   // Real Teacher Data
   const [teacherList, setTeacherList] = useState<any[]>([]); 
-  const [teacherDetails, setTeacherDetails] = useState<any>({}); // { name: { job: '', originalLoad: ... } }
+  const [teacherDetails, setTeacherDetails] = useState<any>({}); 
   const [classTeacherInfo, setClassTeacherInfo] = useState<any>({});
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
@@ -434,7 +432,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   // Load Data
   useEffect(() => {
     if (!isFirebaseReady || !db) return;
-    // Load Teachers
     const unsubT = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), (docSnap: any) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
@@ -446,7 +443,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         }
       }
     });
-    // Load Schedule
     const unsubS = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), (docSnap: any) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
@@ -464,7 +460,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         slots: schedule[activeDay] || [],
         updatedAt: new Date().toISOString()
       });
-      // Save settings too
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), config);
       alert("✅ 編配資料已安全儲存至雲端！");
     } catch (e) {
@@ -490,22 +485,20 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
 
       for (let i = 2; i < lines.length; i++) {
         const cols = lines[i].split(',').map((c: string) => c.trim());
-        const job = cols[0]; // A Column: Job
-        const name = cols[1]; // B Column: Name
-        const isClassHead = cols[2]; // C Column: Class Teacher (if not empty)
+        const job = cols[0]; 
+        const name = cols[1]; 
+        const isClassHead = cols[2]; 
 
         if (!name) continue;
         
         newTeachers.push(name);
-        newDetails[name] = { job: job || '教師' }; // Default job
+        newDetails[name] = { job: job || '教師' }; 
 
-        // If C column has value, mark as class head for that class
         if (isClassHead && isClassHead.trim() !== '') {
            const headClass = isClassHead.trim();
            if(newClassInfo[headClass]) newClassInfo[headClass].head = name;
         }
 
-        // Schedule parsing (cols 3+)
         for (let j = 3; j < cols.length; j++) {
            const content = cols[j];
            if (content && content.length > 2) {
@@ -521,7 +514,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         }
       }
 
-      // Sort subjects for each class
       Object.keys(newClassInfo).forEach(cls => {
         newClassInfo[cls].subjects = sortSubjects(newClassInfo[cls].subjects);
       });
@@ -544,7 +536,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     reader.readAsText(file, csvEncoding);
   };
 
-  // Schedule Init
   useEffect(() => {
     setSchedule((prev: any) => {
       if (prev[activeDay] && prev[activeDay].length > 0) return prev;
@@ -581,6 +572,28 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     });
   };
 
+  // V5.9 Handle Dropping Grid Teacher -> Pool (Remove from Grid)
+  const handlePoolDrop = (e: any) => {
+    e.preventDefault();
+    if (!draggedTeacher) return;
+    const { name, fromClass, fromPeriod } = draggedTeacher;
+    // Only if coming from a grid slot (not pool-to-pool)
+    if (fromClass !== 'POOL') {
+       setSchedule((prev: any) => {
+          const dayData = [...(prev[activeDay] || [])];
+          const srcIdx = dayData.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
+          if (srcIdx >= 0) {
+             dayData[srcIdx] = { 
+               ...dayData[srcIdx], 
+               teachers: dayData[srcIdx].teachers.filter((t: string) => t !== name) 
+             };
+          }
+          return { ...prev, [activeDay]: dayData };
+       });
+    }
+    setDraggedTeacher(null);
+  };
+
   const handleDrop = (e: any, targetClass: string, targetPeriod: number) => {
     e.preventDefault();
     if (!draggedTeacher) return;
@@ -589,7 +602,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     
     setSchedule((prev: any) => {
       const dayData = [...(prev[activeDay] || [])];
-      // Remove (if dragging from another slot)
+      // Remove
       if (fromClass !== 'POOL') {
          const srcIdx = dayData.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
          if (srcIdx >= 0) dayData[srcIdx] = { ...dayData[srcIdx], teachers: dayData[srcIdx].teachers.filter((t: string) => t !== name) };
@@ -609,25 +622,20 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     setSelectedClassInfo({ id: cls, info });
   };
 
-  // V5.8 Smart Auto-Assign
   const handleAutoAssign = () => {
     if (!isDataLoaded && !window.confirm("尚未上載 CSV，將使用模擬數據。是否繼續？")) return;
     
     const daySchedule = schedule[activeDay] || [];
     const totalSlotsNeeded = daySchedule.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
     
-    // Filter out excluded teachers
     const availableTeachers = (isDataLoaded ? teacherList : ['T1']).filter((t: string) => !excludedTeachers.includes(t));
     
-    // Calculate Baseline based on mode
     let baselineLoad = 1;
     let jobLimits: any = {};
     
     if (assignMode === 'JOB_BASED') {
-      // Calculate remaining slots for regular teachers
       let slotsTakenByJobs = 0;
       let regularTeacherCount = 0;
-      
       availableTeachers.forEach((t: string) => {
         const job = teacherDetails[t]?.job || '教師';
         if (jobTargets[job]) {
@@ -637,12 +645,9 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
           regularTeacherCount++;
         }
       });
-      
       const remainingSlots = Math.max(0, totalSlotsNeeded - slotsTakenByJobs);
       baselineLoad = regularTeacherCount > 0 ? Math.ceil(remainingSlots / regularTeacherCount) : 1;
-      
     } else {
-      // Average Mode
       baselineLoad = Math.ceil(totalSlotsNeeded / availableTeachers.length);
     }
     
@@ -653,7 +658,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     
     const currentLoad: any = {};
     availableTeachers.forEach((t: string) => currentLoad[t] = 0);
-    // Count existing
     dayAssignments.forEach((slot: any) => slot.teachers.forEach((t: any) => {
       if(currentLoad[t] !== undefined) currentLoad[t]++;
     }));
@@ -668,12 +672,9 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         if (isBusy) return null;
 
         let score = 100;
-        
-        // 1. Load Limit Check
         const limit = jobLimits[tName] !== undefined ? jobLimits[tName] : baselineLoad;
-        if (currentLoad[tName] >= limit) score -= 500; // Strict penalty
+        if (currentLoad[tName] >= limit) score -= 500; 
 
-        // 2. Role Priority
         const info = classTeacherInfo[slot.classId];
         if (info) {
           if (info.head === tName) score += 50; 
@@ -704,8 +705,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const data: any[] = [];
     const currentAssignments = schedule[activeDay] || [];
     const teachersPool = isDataLoaded ? teacherList : ['T1'];
-    
-    // Simple baseline for chart visualization
     const totalSlots = currentAssignments.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
     const avgBaseline = Math.ceil(totalSlots / teachersPool.length);
 
@@ -723,7 +722,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const poolTeachers = useMemo(() => {
     if (!isDataLoaded) return [];
     const currentAssignments = schedule[activeDay] || [];
-    // Teachers NOT assigned in activePoolPeriod AND NOT excluded
     return teacherList.filter(t => 
       !excludedTeachers.includes(t) &&
       !currentAssignments.some((s: any) => s.period === activePoolPeriod && s.teachers.includes(t))
@@ -768,8 +766,40 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                   <input type="file" accept=".csv" onChange={handleFileUpload} className="block w-full text-[10px]"/>
                   {isDataLoaded && <div className="mt-1 text-[10px] text-green-600 font-bold">✅ 已載入 {teacherList.length} 位教師</div>}
                 </div>
+
+                {/* 2. Teacher Pool (New Position) */}
+                <div className="border-b pb-4 mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-[10px] font-bold text-slate-400 block uppercase flex items-center gap-1"><Layers size={12}/> 第 {activePoolPeriod} 節教師池 ({poolTeachers.length})</label>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {Array.from({length: config.periodsCount}, (_, i) => i+1).map(p => (
+                      <button key={p} onClick={() => setActivePoolPeriod(p)} className={`w-6 h-6 text-[10px] rounded font-bold transition-colors ${activePoolPeriod===p?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{p}</button>
+                    ))}
+                  </div>
+                  <div 
+                    onDragOver={(e) => e.preventDefault()} 
+                    onDrop={handlePoolDrop}
+                    className="min-h-[100px] max-h-[200px] overflow-y-auto bg-slate-50 rounded border-2 border-dashed border-slate-200 p-2 transition-colors hover:border-indigo-300"
+                  >
+                     {poolTeachers.length > 0 ? (
+                       <div className="flex flex-wrap gap-1">
+                         {poolTeachers.map(t => (
+                           <div key={t} draggable onDragStart={(e) => { setDraggedTeacher({name:t, fromClass:'POOL', fromPeriod:activePoolPeriod}); e.dataTransfer.effectAllowed="move"; }} className="px-2 py-1 bg-white border border-slate-300 rounded text-[10px] shadow-sm cursor-grab hover:border-indigo-500 hover:text-indigo-600 select-none">
+                             {t}
+                           </div>
+                         ))}
+                       </div>
+                     ) : (
+                       <div className="h-full flex flex-col items-center justify-center text-slate-300 text-xs italic">
+                         <span>本節無可用教師</span>
+                         <span className="text-[9px] mt-1">或拖曳至此釋放</span>
+                       </div>
+                     )}
+                  </div>
+                </div>
                 
-                {/* 2. Mode & Capacity */}
+                {/* 3. Mode & Capacity */}
                 <div className="space-y-4 border-b pb-4">
                    <div>
                      <label className="text-[10px] font-bold text-slate-400 mb-1 block uppercase">編配模式</label>
@@ -793,7 +823,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                    </div>
                 </div>
 
-                {/* 3. Exclusions */}
+                {/* 4. Exclusions */}
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 mb-2 block uppercase flex items-center gap-1"><UserX size={12}/> 不可編堂名單 ({excludedTeachers.length})</label>
                   <div className="max-h-32 overflow-y-auto border rounded p-1 bg-slate-50">
@@ -806,7 +836,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                   </div>
                 </div>
 
-                {/* 4. Class Info */}
+                {/* 5. Class Info */}
                 {selectedClassInfo ? (
                   <div className="bg-slate-50 rounded border border-slate-200 p-3 shadow-inner">
                      <div className="flex justify-between mb-2 border-b pb-1">
@@ -829,7 +859,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         )}
 
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-100/50">
-          {/* Main Grid */}
           <div className="flex-1 overflow-auto p-4">
             <div className="bg-white rounded shadow-sm border border-slate-300 min-w-[800px]">
               <div className="grid bg-slate-50 border-b sticky top-0 z-10" style={{ gridTemplateColumns: `60px repeat(${config.periodsCount}, 1fr)` }}>
@@ -868,33 +897,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                 ))}
               </div>
             </div>
-          </div>
-
-          {/* Bottom Teacher Pool */}
-          <div className="h-32 bg-white border-t p-3 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
-             <div className="flex justify-between items-center mb-2">
-               <h4 className="text-xs font-bold text-indigo-700 flex items-center gap-2"><Layers size={14}/> 第 {activePoolPeriod} 節 - 可用教師池 ({poolTeachers.length})</h4>
-               <div className="flex gap-1">
-                  {Array.from({length: config.periodsCount}, (_, i) => i+1).map(p => (
-                    <button key={p} onClick={() => setActivePoolPeriod(p)} className={`w-6 h-6 text-[10px] rounded font-bold ${activePoolPeriod===p?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{p}</button>
-                  ))}
-               </div>
-             </div>
-             <div className="flex-1 overflow-y-auto bg-slate-50 rounded border border-slate-200 p-2">
-                <div className="flex flex-wrap gap-1">
-                  {poolTeachers.map(t => (
-                    <div 
-                      key={t} 
-                      draggable 
-                      onDragStart={(e) => { setDraggedTeacher({name:t, fromClass:'POOL', fromPeriod:activePoolPeriod}); e.dataTransfer.effectAllowed="move"; }}
-                      className="px-2 py-1 bg-white border border-slate-300 rounded text-[10px] shadow-sm cursor-grab hover:border-indigo-500 hover:text-indigo-600 select-none"
-                    >
-                      {t}
-                    </div>
-                  ))}
-                  {poolTeachers.length === 0 && <span className="text-xs text-slate-400 italic w-full text-center py-2">本節無可用教師</span>}
-                </div>
-             </div>
           </div>
         </div>
       </div>
@@ -965,7 +967,7 @@ const AppContent = () => {
           <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='ai-design'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Cpu size={18} /><span className="text-sm font-bold">AI 課程設計</span></button>
         </div>
         <div className="p-4 border-t text-[10px] text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V5.8 Final</span>
+          <span>V5.9 Final</span>
           <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}><Cloud size={10} /> {user ? 'Online' : 'Offline'}</span>
         </div>
       </nav>
