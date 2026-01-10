@@ -60,14 +60,18 @@ const getGlobalVar = (key: string) => {
   return undefined;
 };
 
+// 直接填入您的 Firebase 設定
 const getFirebaseConfig = () => {
-  try {
-    const rawConfig = getGlobalVar('__firebase_config');
-    return rawConfig ? JSON.parse(rawConfig) : {};
-  } catch (e) {
-    return {};
-  }
+  return {
+    apiKey: "AIzaSyAvl1XfKbQvVueXHAjv6bjUnvJmRMEp3UM",
+    authDomain: "curriculum-manager01.firebaseapp.com",
+    projectId: "curriculum-manager01",
+    storageBucket: "curriculum-manager01.firebasestorage.app",
+    messagingSenderId: "949862664220",
+    appId: "1:949862664220:web:bb114560a402f0911c77d9"
+  };
 };
+// ------------------------------
 
 const firebaseConfig = getFirebaseConfig();
 // Conditional initialization
