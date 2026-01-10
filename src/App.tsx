@@ -44,65 +44,50 @@ import {
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from 'firebase/firestore';
 
 // ==========================================
-// SECTION 0: FIREBASE CONFIG & UTILS (SAFE MODE)
+// SECTION 0: FIREBASE CONFIG & UTILS
 // ==========================================
 
-// 安全獲取全域變數的輔助函式
-const getGlobalVar = (key) => {
-  try {
-    return typeof window !== 'undefined' && window[key] ? window[key] : undefined;
-  } catch (e) {
-    return undefined;
+// 解決 TypeScript 全域變數錯誤
+const getGlobalVar = (key: string) => {
+  if (typeof window !== 'undefined' && (window as any)[key]) {
+    return (window as any)[key];
   }
+  return undefined;
 };
 
-// 獲取 Firebase 設定 (移除 import.meta 以相容舊版構建環境)
 const getFirebaseConfig = () => {
   try {
     const rawConfig = getGlobalVar('__firebase_config');
-    // 如果全域變數存在，優先使用
-    if (rawConfig) {
-      return JSON.parse(rawConfig);
-    }
-    // 如果在 Vercel 等環境，可在此處手動填入設定，或使用環境變數的替代方案
-    // 目前回傳空物件以避免構建錯誤，這會讓 App 進入「離線模式」
-    return {};
+    return rawConfig ? JSON.parse(rawConfig) : {};
   } catch (e) {
     return {};
   }
 };
 
 const firebaseConfig = getFirebaseConfig();
-const isFirebaseReady = Object.keys(firebaseConfig).length > 0 && firebaseConfig.apiKey;
-
-// 只有在 Config 有效時才初始化
-let app, auth, db;
-if (isFirebaseReady) {
-  try {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-  } catch (e) {
-    console.error("Firebase init failed:", e);
-  }
-}
-
+// 防呆機制：如果沒有 config，不初始化 app 以免崩潰
+const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfig) : undefined;
+const auth = app ? getAuth(app) : undefined;
+const db = app ? getFirestore(app) : undefined;
 const appId = getGlobalVar('__app_id') || 'default-app-id';
+const initialToken = getGlobalVar('__initial_auth_token');
 
-// Hook for Auth (Safe Version)
+// Hook for Auth
 const useAuth = () => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   useEffect(() => {
-    if (!isFirebaseReady || !auth) return;
-
+    if (!auth) return;
     const initAuth = async () => {
+      if (initialToken) {
+        // Handle custom token
+      } 
       try {
         await signInAnonymously(auth);
       } catch (e) {
-        console.error("Auth failed:", e);
+        console.error("Auth failed", e);
       }
     };
     initAuth();
@@ -154,14 +139,14 @@ const ALL_CLASSES = STAFFING_LEVELS.flatMap(lvl => CLASS_SUFFIXES.map(s => `${lv
 // SECTION 2: SUB-COMPONENTS
 // ==========================================
 
-// --- Setup Wizard ---
-const SetupWizard = ({ onComplete }) => {
-  const [selectedGrades, setSelectedGrades] = useState(['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
+// --- 2.0 Setup Wizard ---
+const SetupWizard = ({ onComplete }: any) => {
+  const [selectedGrades, setSelectedGrades] = useState<string[]>(['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
   const [daysCount, setDaysCount] = useState(4);
   const [periodsCount, setPeriodsCount] = useState(6);
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); 
 
-  const toggleGrade = (grade) => {
+  const toggleGrade = (grade: string) => {
     setSelectedGrades(prev => prev.includes(grade) ? prev.filter(g => g !== grade) : [...prev, grade].sort());
   };
 
@@ -257,9 +242,10 @@ const AiDesignView = () => {
 };
 
 // --- Dashboard View ---
-const DashboardView = ({ config }) => {
+const DashboardView = ({ config }: any) => {
   const today = new Date();
   const start = new Date(config.startDate);
+  // TypeScript Fix: Cast to number for arithmetic
   const diffTime = start.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   const countdownText = diffDays > 0 ? `${diffDays} 天` : (diffDays === 0 ? "今天！" : "已開始");
@@ -299,13 +285,13 @@ const DashboardView = ({ config }) => {
 };
 
 // --- Venue System ---
-const VenueAllocationSystem = ({ config, activeDay }) => {
+const VenueAllocationSystem = ({ config, activeDay }: any) => {
   const VENUES = ['禮堂', '雨天操場'];
-  const [schedule, setSchedule] = useState({});
-  const [draggedClass, setDraggedClass] = useState(null);
+  const [schedule, setSchedule] = useState<any>({});
+  const [draggedClass, setDraggedClass] = useState<any>(null);
 
   useEffect(() => {
-    setSchedule(prev => {
+    setSchedule((prev: any) => {
       const newSched = { ...prev };
       for (let d = 1; d <= config.daysCount; d++) {
         const dayKey = `Day ${d}`;
@@ -321,13 +307,13 @@ const VenueAllocationSystem = ({ config, activeDay }) => {
     });
   }, [config]);
 
-  const handleDragStart = (e, classId) => { setDraggedClass(classId); e.dataTransfer.effectAllowed = "copy"; };
+  const handleDragStart = (e: any, classId: string) => { setDraggedClass(classId); e.dataTransfer.effectAllowed = "copy"; };
   
-  const handleDrop = (e, venue, period) => {
+  const handleDrop = (e: any, venue: string, period: number) => {
     e.preventDefault();
     if (!draggedClass) return;
     const dayKey = activeDay;
-    setSchedule(prev => {
+    setSchedule((prev: any) => {
       if (!prev[dayKey]) return prev;
       const newDaySched = { ...prev[dayKey] };
       const currentList = newDaySched[venue]?.[period] || [];
@@ -337,12 +323,12 @@ const VenueAllocationSystem = ({ config, activeDay }) => {
     setDraggedClass(null);
   };
 
-  const handleRemoveClass = (venue, period, classId) => {
+  const handleRemoveClass = (venue: string, period: number, classId: string) => {
     const dayKey = activeDay;
-    setSchedule(prev => {
+    setSchedule((prev: any) => {
       if (!prev[dayKey]) return prev;
       const newDaySched = { ...prev[dayKey] };
-      newDaySched[venue][period] = newDaySched[venue][period].filter(c => c !== classId);
+      newDaySched[venue][period] = newDaySched[venue][period].filter((c: string) => c !== classId);
       return { ...prev, [dayKey]: newDaySched };
     });
   };
@@ -369,7 +355,7 @@ const VenueAllocationSystem = ({ config, activeDay }) => {
                   <div key={p} className="border-r border-b border-slate-200 min-h-[120px] p-2 bg-slate-50/30" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, venue, p)}>
                     <div className="text-xs font-bold text-slate-400 mb-2 text-center">第 {p} 節</div>
                     <div className="flex flex-wrap gap-1">
-                      {schedule[activeDay]?.[venue]?.[p]?.map(cls => (
+                      {schedule[activeDay]?.[venue]?.[p]?.map((cls: string) => (
                         <div key={cls} className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded flex items-center gap-1">{cls}<button onClick={() => handleRemoveClass(venue, p, cls)} className="hover:text-red-500"><X size={10}/></button></div>
                       ))}
                     </div>
@@ -385,19 +371,19 @@ const VenueAllocationSystem = ({ config, activeDay }) => {
 };
 
 // --- Staffing System ---
-const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
+const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [showConfig, setShowConfig] = useState(true);
   const [defaultCapacity, setDefaultCapacity] = useState(2); 
-  const [schedule, setSchedule] = useState({});
+  const [schedule, setSchedule] = useState<any>({});
   const [showStatsModal, setShowStatsModal] = useState(false);
-  const [draggedTeacher, setDraggedTeacher] = useState(null);
-  const [selectedClassInfo, setSelectedClassInfo] = useState(null);
+  const [draggedTeacher, setDraggedTeacher] = useState<any>(null);
+  const [selectedClassInfo, setSelectedClassInfo] = useState<any>(null);
   
   // Real Teacher Data State
-  const [teacherList, setTeacherList] = useState([]); 
-  const [teacherOriginalLoads, setTeacherOriginalLoads] = useState({});
-  const [teacherSubjects, setTeacherSubjects] = useState({});
-  const [classTeacherInfo, setClassTeacherInfo] = useState({});
+  const [teacherList, setTeacherList] = useState<any[]>([]); 
+  const [teacherOriginalLoads, setTeacherOriginalLoads] = useState<any>({});
+  const [teacherSubjects, setTeacherSubjects] = useState<any>({});
+  const [classTeacherInfo, setClassTeacherInfo] = useState<any>({});
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Mock Data Generators for fallback
@@ -406,11 +392,9 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
 
   // Firestore Sync - Load Data
   useEffect(() => {
-    if (!isFirebaseReady || !db) return;
+    if (!user || !db) return;
     try {
-      // 確保使用正確的 6 段路徑 (Collection -> Doc -> Collection -> Doc -> Collection -> Doc)
-      // 路徑範例: artifacts/{appId}/public/data/teachers/main_list
-      const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), (docSnap) => {
+      const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.teacherList && data.teacherList.length > 0) {
@@ -430,19 +414,19 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
   }, [user]);
 
   // CSV Parsing Logic
-  const handleFileUpload = (e) => {
+  const handleFileUpload = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const text = evt.target.result;
+      const text = evt.target.result as string;
       const lines = text.split('\n').filter(l => l.trim());
       
-      const newTeacherList = [];
-      const newSubjects = {};
-      const newLoads = {};
-      const newClassInfo = {};
+      const newTeacherList: any[] = [];
+      const newSubjects: any = {};
+      const newLoads: any = {};
+      const newClassInfo: any = {};
 
       ALL_CLASSES.forEach(cls => newClassInfo[cls] = { head: '待定', subjects: [] });
 
@@ -456,7 +440,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
         if (!newSubjects[name]) newSubjects[name] = [];
         newLoads[name] = {};
 
-        let dailyLoadCount = {};
+        let dailyLoadCount: any = {};
 
         for (let j = 3; j < cols.length; j++) {
           const content = cols[j];
@@ -490,10 +474,9 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
       setClassTeacherInfo(newClassInfo);
       setIsDataLoaded(true);
 
-      if (isFirebaseReady && db) {
+      if (user && db) {
         try {
-          // 確保使用正確的 6 段路徑
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), {
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), {
             teacherList: sortedTeachers,
             teacherSubjects: newSubjects,
             teacherOriginalLoads: newLoads,
@@ -513,7 +496,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
   const activeTeacherList = isDataLoaded ? teacherList : MASTER_TEACHER_LIST_MOCK; 
   
   useEffect(() => {
-    setSchedule(prev => {
+    setSchedule((prev: any) => {
       const nextSchedule = { ...prev };
       for (let d = 1; d <= config.daysCount; d++) {
         const dayKey = `Day ${d}`;
@@ -530,10 +513,10 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
     });
   }, [config, defaultCapacity]);
 
-  const toggleSlotCapacity = (classId, period) => {
-    setSchedule(prev => {
+  const toggleSlotCapacity = (classId: string, period: number) => {
+    setSchedule((prev: any) => {
       const daySchedule = [...(prev[activeDay] || [])];
-      const slotIndex = daySchedule.findIndex(s => s.classId === classId && s.period === period);
+      const slotIndex = daySchedule.findIndex((s: any) => s.classId === classId && s.period === period);
       if (slotIndex >= 0) {
         const newCap = daySchedule[slotIndex].capacity === 1 ? 2 : 1;
         daySchedule[slotIndex] = { ...daySchedule[slotIndex], capacity: newCap };
@@ -542,7 +525,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
     });
   };
 
-  const handleCellClick = (classId) => {
+  const handleCellClick = (classId: string) => {
     const info = classTeacherInfo[classId] || { head: 'N/A', subjects: [] };
     setSelectedClassInfo({ id: classId, info });
   };
@@ -553,7 +536,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
     }
     
     const daySchedule = schedule[activeDay] || [];
-    const totalSlotsNeeded = daySchedule.reduce((acc, slot) => acc + slot.capacity, 0);
+    const totalSlotsNeeded = daySchedule.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
     const totalTeachers = activeTeacherList.length;
     const baselineLoad = Math.ceil(totalSlotsNeeded / totalTeachers) || 1;
 
@@ -562,17 +545,17 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
     const newSchedule = { ...schedule };
     const dayAssignments = [...(newSchedule[activeDay] || [])];
     
-    const currentLoad = {};
+    const currentLoad: any = {};
     activeTeacherList.forEach(t => currentLoad[t] = 0);
-    dayAssignments.forEach(slot => slot.teachers.forEach(t => currentLoad[t] = (currentLoad[t]||0) + 1));
+    dayAssignments.forEach((slot: any) => slot.teachers.forEach((t: any) => currentLoad[t] = (currentLoad[t]||0) + 1));
 
-    dayAssignments.forEach(slot => {
+    dayAssignments.forEach((slot: any) => {
       const needed = slot.capacity - slot.teachers.length;
       if (needed <= 0) return;
 
       let candidates = activeTeacherList.map(tName => {
         if (slot.teachers.includes(tName)) return null;
-        const isBusy = dayAssignments.some(s => s.period === slot.period && s.teachers.includes(tName));
+        const isBusy = dayAssignments.some((s: any) => s.period === slot.period && s.teachers.includes(tName));
         if (isBusy) return null;
 
         let score = 100;
@@ -581,11 +564,11 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
         const tInfo = classTeacherInfo[slot.classId];
         if (tInfo) {
           if (tInfo.head === tName) score += 30;
-          if (tInfo.subjects.some(s => s.teacher === tName)) score += 15;
+          if (tInfo.subjects.some((s: any) => s.teacher === tName)) score += 15;
         }
 
         return { name: tName, score };
-      }).filter(Boolean);
+      }).filter(Boolean) as {name: string, score: number}[];
 
       candidates.sort((a, b) => b.score - a.score);
       const toAdd = candidates.slice(0, needed).map(c => c.name);
@@ -596,19 +579,19 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
     setSchedule({ ...newSchedule, [activeDay]: dayAssignments });
   };
 
-  const handleDragStart = (e, name, classId, period) => { setDraggedTeacher({ name, fromClass: classId, fromPeriod: period }); e.dataTransfer.effectAllowed = "move"; };
-  const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
+  const handleDragStart = (e: any, name: string, classId: string, period: number) => { setDraggedTeacher({ name, fromClass: classId, fromPeriod: period }); e.dataTransfer.effectAllowed = "move"; };
+  const handleDragOver = (e: any) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
   
-  const handleDrop = (e, targetClassId, targetPeriod) => {
+  const handleDrop = (e: any, targetClassId: string, targetPeriod: number) => {
     e.preventDefault();
     if (!draggedTeacher) return;
     const { name, fromClass, fromPeriod } = draggedTeacher;
     if (fromClass === targetClassId && fromPeriod === targetPeriod) return;
-    setSchedule(prev => {
+    setSchedule((prev: any) => {
       const dayAssignments = [...(prev[activeDay] || [])];
-      const sourceSlotIdx = dayAssignments.findIndex(s => s.classId === fromClass && s.period === fromPeriod);
-      if (sourceSlotIdx >= 0) dayAssignments[sourceSlotIdx] = { ...dayAssignments[sourceSlotIdx], teachers: dayAssignments[sourceSlotIdx].teachers.filter(t => t !== name) };
-      const targetSlotIdx = dayAssignments.findIndex(s => s.classId === targetClassId && s.period === targetPeriod);
+      const sourceSlotIdx = dayAssignments.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
+      if (sourceSlotIdx >= 0) dayAssignments[sourceSlotIdx] = { ...dayAssignments[sourceSlotIdx], teachers: dayAssignments[sourceSlotIdx].teachers.filter((t: string) => t !== name) };
+      const targetSlotIdx = dayAssignments.findIndex((s: any) => s.classId === targetClassId && s.period === targetPeriod);
       if (targetSlotIdx >= 0 && !dayAssignments[targetSlotIdx].teachers.includes(name)) {
          dayAssignments[targetSlotIdx] = { ...dayAssignments[targetSlotIdx], teachers: [...dayAssignments[targetSlotIdx].teachers, name] };
       }
@@ -616,29 +599,29 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
     });
     setDraggedTeacher(null);
   };
-  const handleRemoveDrop = (e) => {
+  const handleRemoveDrop = (e: any) => {
     e.preventDefault();
     if (!draggedTeacher) return;
     const { name, fromClass, fromPeriod } = draggedTeacher;
-    setSchedule(prev => {
+    setSchedule((prev: any) => {
       const dayAssignments = [...(prev[activeDay] || [])];
-      const sourceSlotIdx = dayAssignments.findIndex(s => s.classId === fromClass && s.period === fromPeriod);
-      if (sourceSlotIdx >= 0) dayAssignments[sourceSlotIdx] = { ...dayAssignments[sourceSlotIdx], teachers: dayAssignments[sourceSlotIdx].teachers.filter(t => t !== name) };
+      const sourceSlotIdx = dayAssignments.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
+      if (sourceSlotIdx >= 0) dayAssignments[sourceSlotIdx] = { ...dayAssignments[sourceSlotIdx], teachers: dayAssignments[sourceSlotIdx].teachers.filter((t: string) => t !== name) };
       return { ...prev, [activeDay]: dayAssignments };
     });
     setDraggedTeacher(null);
   };
 
   const statsData = useMemo(() => {
-    const data = [];
+    const data: any[] = [];
     const currentAssignments = schedule[activeDay] || [];
-    const totalSlots = currentAssignments.reduce((acc, slot) => acc + slot.capacity, 0);
+    const totalSlots = currentAssignments.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
     const totalT = activeTeacherList.length || 1;
     const baseline = Math.ceil(totalSlots / totalT);
 
     activeTeacherList.forEach(tName => {
       let current = 0;
-      currentAssignments.forEach(slot => { if (slot.teachers.includes(tName)) current++; });
+      currentAssignments.forEach((slot: any) => { if (slot.teachers.includes(tName)) current++; });
       if (current > 0) data.push({ name: tName, current, baseline });
     });
     return data.sort((a, b) => b.current - a.current);
@@ -646,7 +629,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
 
   const handleClearDay = () => {
     if(!window.confirm("確定清空？")) return;
-    setSchedule(prev => ({ ...prev, [activeDay]: prev[activeDay].map(slot => ({ ...slot, teachers: [] })) }));
+    setSchedule((prev: any) => ({ ...prev, [activeDay]: prev[activeDay].map((slot: any) => ({ ...slot, teachers: [] })) }));
   };
 
   const filteredClasses = ALL_CLASSES.filter(c => config.selectedGrades.includes('P'+c.charAt(0)));
@@ -658,7 +641,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
         <div className="flex items-center gap-4">
            <button onClick={() => setShowConfig(!showConfig)} className={`p-2 rounded-lg border transition-colors ${showConfig ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Settings size={20} /></button>
            <div className="flex bg-slate-100 p-1 rounded-lg">
-             {Array.from({length: config.daysCount}, (_, i) => `Day ${i+1}`).map(d => (
+             {Array.from({length: config.daysCount}, (_, i) => `Day ${i+1}`).map((d: any) => (
                <button key={d} onClick={() => setActiveDay(d)} className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${activeDay === d ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>{d}</button>
              ))}
            </div>
@@ -709,7 +692,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
                         <span className="text-xs bg-white px-2 py-1 rounded border border-indigo-200 text-indigo-600 font-bold">班主任: {selectedClassInfo.info.head}</span>
                       </div>
                       <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                        {selectedClassInfo.info.subjects.map((s, i) => (
+                        {selectedClassInfo.info.subjects.map((s: any, i: number) => (
                           <div key={i} className="flex justify-between text-xs border-b border-indigo-100 last:border-0 py-1">
                             <span className="text-slate-500">{s.subject}</span>
                             <span className="font-bold text-slate-700">{s.teacher}</span>
@@ -742,7 +725,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
                  <div key={cls} className="grid hover:bg-slate-50/50 transition-colors group/row" style={{ gridTemplateColumns: `80px repeat(${config.periodsCount}, 1fr)` }}>
                    <div className="p-2 font-bold text-slate-700 border-r flex items-center justify-center bg-slate-50/30 text-lg">{cls}</div>
                    {Array.from({length: config.periodsCount}, (_, i) => i+1).map(p => {
-                     const slot = schedule[activeDay]?.find(s => s.classId === cls && s.period === p);
+                     const slot = schedule[activeDay]?.find((s: any) => s.classId === cls && s.period === p);
                      if (!slot) return <div key={p} className="border-r bg-slate-50/20"></div>;
                      return (
                        <div 
@@ -753,7 +736,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }) => {
                          onDrop={(e) => handleDrop(e, cls, p)}
                        >
                          <div className="flex flex-wrap gap-1 content-start h-full pb-6">
-                           {slot.teachers.map((t, i) => (
+                           {slot.teachers.map((t: string, i: number) => (
                              <div key={i} draggable onDragStart={(e) => handleDragStart(e, t, cls, p)} className="cursor-grab active:cursor-grabbing flex items-center gap-1.5 text-xs bg-white text-slate-700 pl-2 pr-1 py-1 rounded-md border border-slate-200 shadow-sm hover:shadow hover:border-indigo-300 hover:text-indigo-600 transition-all select-none">
                                <span className="font-bold">{t}</span><GripHorizontal size={12} className="text-slate-300" />
                              </div>
@@ -810,13 +793,13 @@ const App = () => {
   
   // System State
   const [isSystemStarted, setIsSystemStarted] = useState(false);
-  const [sysConfig, setSysConfig] = useState(null);
+  const [sysConfig, setSysConfig] = useState<any>(null);
   const [activeDay, setActiveDay] = useState('Day 1');
   
   // Auth State
   const user = useAuth();
 
-  const handleWizardComplete = (config) => {
+  const handleWizardComplete = (config: any) => {
     setSysConfig(config);
     setIsSystemStarted(true);
   };
@@ -863,7 +846,7 @@ const App = () => {
             <div className="bg-slate-100 p-1 rounded-lg flex items-center">
                <span className="text-xs font-bold text-slate-400 px-2 uppercase">Global Day:</span>
                <select value={activeDay} onChange={(e) => setActiveDay(e.target.value)} className="bg-transparent text-sm font-bold text-indigo-700 outline-none">
-                 {Array.from({length: sysConfig.daysCount}, (_, i) => `Day ${i+1}`).map(d => <option key={d} value={d}>{d}</option>)}
+                 {Array.from({length: sysConfig.daysCount}, (_, i) => `Day ${i+1}`).map((d: any) => <option key={d} value={d}>{d}</option>)}
                </select>
             </div>
             <div className="w-8 h-8 bg-indigo-900 rounded-full flex items-center justify-center text-white text-xs font-bold">陳</div>
