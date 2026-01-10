@@ -198,8 +198,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.9</span></h1>
-          <p className="text-slate-500 font-medium">Smart Pool Sidebar • Return to Pool • Cloud Sync</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.10</span></h1>
+          <p className="text-slate-500 font-medium">Auto-Balance v2 • Head Teacher Priority • Pool Sidebar</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -629,62 +629,70 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const totalSlotsNeeded = daySchedule.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
     
     const availableTeachers = (isDataLoaded ? teacherList : ['T1']).filter((t: string) => !excludedTeachers.includes(t));
+    const totalTeachers = availableTeachers.length;
     
-    let baselineLoad = 1;
-    let jobLimits: any = {};
+    // 1. Calculate Baseline: Total Slots / Total Teachers
+    const baselineLoad = Math.ceil(totalSlotsNeeded / (totalTeachers || 1));
     
-    if (assignMode === 'JOB_BASED') {
-      let slotsTakenByJobs = 0;
-      let regularTeacherCount = 0;
-      availableTeachers.forEach((t: string) => {
-        const job = teacherDetails[t]?.job || '教師';
-        if (jobTargets[job]) {
-          slotsTakenByJobs += jobTargets[job];
-          jobLimits[t] = jobTargets[job];
-        } else {
-          regularTeacherCount++;
-        }
-      });
-      const remainingSlots = Math.max(0, totalSlotsNeeded - slotsTakenByJobs);
-      baselineLoad = regularTeacherCount > 0 ? Math.ceil(remainingSlots / regularTeacherCount) : 1;
-    } else {
-      baselineLoad = Math.ceil(totalSlotsNeeded / availableTeachers.length);
-    }
-    
-    if(!window.confirm(`智能編配 (${assignMode === 'AVERAGE' ? '平均' : '職位'}) 模式\n\n當日人次: ${totalSlotsNeeded}\n可用教師: ${availableTeachers.length}\n一般教師基準: ${baselineLoad} 節/人`)) return;
+    if(!window.confirm(`智能編配 (V5.10)\n\n當日人次: ${totalSlotsNeeded}\n可用教師: ${availableTeachers.length}\n平均基準線: ${baselineLoad} 節/人\n\n策略：\n1. 班主任先填滿至平均\n2. 科任填滿至平均\n3. 餘下由班主任承擔`)) return;
     
     const newSchedule = { ...schedule };
     const dayAssignments = JSON.parse(JSON.stringify(newSchedule[activeDay] || [])); 
     
     const currentLoad: any = {};
     availableTeachers.forEach((t: string) => currentLoad[t] = 0);
-    dayAssignments.forEach((slot: any) => slot.teachers.forEach((t: any) => {
-      if(currentLoad[t] !== undefined) currentLoad[t]++;
-    }));
+    
+    dayAssignments.forEach((slot: any) => {
+        slot.teachers.forEach((t: any) => {
+             if (currentLoad[t] !== undefined) currentLoad[t]++;
+        });
+    });
 
     dayAssignments.forEach((slot: any) => {
       const needed = slot.capacity - slot.teachers.length;
       if (needed <= 0) return;
       
+      const classInfo = classTeacherInfo[slot.classId];
+      const classHead = classInfo?.head;
+      const subjectTeachers = classInfo?.subjects?.map((s: any) => s.teacher) || [];
+
       let candidates = availableTeachers.map((tName: string) => {
         if (slot.teachers.includes(tName)) return null;
         const isBusy = dayAssignments.some((s: any) => s.period === slot.period && s.classId !== slot.classId && s.teachers.includes(tName));
         if (isBusy) return null;
 
-        let score = 100;
-        const limit = jobLimits[tName] !== undefined ? jobLimits[tName] : baselineLoad;
-        if (currentLoad[tName] >= limit) score -= 500; 
+        let tier = 6; 
 
-        const info = classTeacherInfo[slot.classId];
-        if (info) {
-          if (info.head === tName) score += 50; 
-          if (info.subjects.some((s:any) => s.teacher === tName)) score += 30; 
+        const isHead = (tName === classHead);
+        const isSubject = subjectTeachers.includes(tName);
+        const isUnderLoaded = currentLoad[tName] < baselineLoad;
+
+        if (isHead && isUnderLoaded) {
+            tier = 1; 
+        } else if (isSubject && isUnderLoaded) {
+            tier = 2; 
+        } else if (isHead && !isUnderLoaded) {
+            tier = 3; 
+        } else if (isSubject && !isUnderLoaded) {
+            tier = 4; 
+        } else if (isUnderLoaded) {
+            tier = 5; 
+        } else {
+            tier = 6; 
         }
 
-        return { name: tName, score };
-      }).filter(Boolean) as {name: string, score: number}[];
+        return { 
+            name: tName, 
+            tier: tier,
+            load: currentLoad[tName] 
+        };
+      }).filter(Boolean) as {name: string, tier: number, load: number}[];
 
-      candidates.sort((a, b) => b.score - a.score);
+      candidates.sort((a, b) => {
+          if (a.tier !== b.tier) return a.tier - b.tier;
+          return a.load - b.load;
+      });
+
       const toAdd = candidates.slice(0, needed).map(c => c.name);
       toAdd.forEach(t => currentLoad[t]++);
       slot.teachers = [...slot.teachers, ...toAdd];
@@ -705,6 +713,8 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const data: any[] = [];
     const currentAssignments = schedule[activeDay] || [];
     const teachersPool = isDataLoaded ? teacherList : ['T1'];
+    
+    // Simple baseline for chart visualization
     const totalSlots = currentAssignments.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
     const avgBaseline = Math.ceil(totalSlots / teachersPool.length);
 
