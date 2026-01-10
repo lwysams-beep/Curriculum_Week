@@ -95,6 +95,7 @@ let auth: any = null;
 let db: any = null;
 let isFirebaseReady = false;
 
+// 您的 Firebase 設定
 const firebaseConfig = {
   apiKey: "AIzaSyAvl1XfKbQvVueXHAjv6bjUnvJmRMEp3UM",
   authDomain: "curriculum-manager01.firebaseapp.com",
@@ -177,7 +178,6 @@ const FIVE_C_PLUS = [
 const AGILE_SKILLS = ["AI數位", "適應性", "好奇心", "解難", "韌性", "領導力"];
 const STAFFING_LEVELS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
 const CLASS_SUFFIXES = ['A', 'B', 'C', 'D', 'E'];
-// Updated: Exclude 1E and 3E
 const ALL_CLASSES = STAFFING_LEVELS.flatMap(lvl => CLASS_SUFFIXES.map(s => `${lvl.replace('P','')}${s}`))
   .filter(cls => cls !== '1E' && cls !== '3E');
 
@@ -200,7 +200,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.10</span></h1>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.10.1</span></h1>
           <p className="text-slate-500 font-medium">Auto-Balance v2 • Head Teacher Priority • Pool Sidebar</p>
         </div>
 
@@ -455,18 +455,32 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   }, [user, activeDay]);
 
   const handleSaveToCloud = async () => {
-    if (!isFirebaseReady || !db) return alert("Firebase 未連線");
+    if (!isFirebaseReady || !db) return alert("Firebase 未連線 (離線模式)");
+    
+    // Add timeout to prevent hanging
     setIsSaving(true);
     try {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), {
-        slots: schedule[activeDay] || [],
-        updatedAt: new Date().toISOString()
-      });
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), config);
+      const savePromise = async () => {
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), {
+            slots: schedule[activeDay] || [],
+            updatedAt: new Date().toISOString()
+          });
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), config);
+      };
+
+      // 5 second timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), 5000)
+      );
+
+      await Promise.race([savePromise(), timeoutPromise]);
       alert("✅ 編配資料已安全儲存至雲端！");
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("儲存失敗");
+      let msg = "儲存失敗";
+      if (e.code === 'permission-denied') msg = "權限不足：請檢查 Firebase Console > Firestore > Rules (設為 Test Mode)";
+      if (e.message === 'Timeout') msg = "連線逾時：請檢查網絡或 Firebase 設定";
+      alert(`⚠️ ${msg}`);
     } finally {
       setIsSaving(false);
     }
@@ -527,6 +541,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       setIsDataLoaded(true);
       
       if (isFirebaseReady && db) {
+        // Path Fixed: 6 segments
         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), {
           teacherList: sorted,
           teacherDetails: newDetails,
