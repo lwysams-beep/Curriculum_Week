@@ -41,7 +41,7 @@ import {
   Cell 
 } from 'recharts';
 
-// Firebase Imports
+// Firebase Imports (using @ts-ignore to bypass module resolution issues if types are missing)
 // @ts-ignore
 import { initializeApp } from 'firebase/app';
 // @ts-ignore
@@ -53,28 +53,29 @@ import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 // SECTION 0: FIREBASE CONFIG & UTILS
 // ==========================================
 
-const getGlobalVar = (key: string) => {
+// Helper to safely access globals or return defaults
+const getGlobalVar = (key: string): any => {
   if (typeof window !== 'undefined' && (window as any)[key]) {
     return (window as any)[key];
   }
   return undefined;
 };
 
-// 直接填入您的 Firebase 設定
-const getFirebaseConfig = () => {
-  return {
-    apiKey: "AIzaSyAvl1XfKbQvVueXHAjv6bjUnvJmRMEp3UM",
-    authDomain: "curriculum-manager01.firebaseapp.com",
-    projectId: "curriculum-manager01",
-    storageBucket: "curriculum-manager01.firebasestorage.app",
-    messagingSenderId: "949862664220",
-    appId: "1:949862664220:web:bb114560a402f0911c77d9"
-  };
+// 安全獲取 Firebase 設定
+const firebaseConfig = {
+  apiKey: "AIzaSyAvl1XfKbQvVueXHAjv6bjUnvJmRMEp3UM",
+  authDomain: "curriculum-manager01.firebaseapp.com",
+  projectId: "curriculum-manager01",
+  storageBucket: "curriculum-manager01.firebasestorage.app",
+  messagingSenderId: "949862664220",
+  appId: "1:949862664220:web:bb114560a402f0911c77d9"
 };
-// ------------------------------
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
 const firebaseConfig = getFirebaseConfig();
-// Conditional initialization
+// 只有在 config 有效時才初始化，避免白屏
 const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfig) : undefined;
 const auth = app ? getAuth(app) : undefined;
 const db = app ? getFirestore(app) : undefined;
@@ -93,7 +94,7 @@ const useAuth = () => {
       try {
         await signInAnonymously(auth);
       } catch (e) {
-        console.error("Auth failed", e);
+        console.error("Auth failed (Offline mode)", e);
       }
     };
     initAuth();
@@ -251,7 +252,8 @@ const AiDesignView = () => {
 const DashboardView = ({ config }: { config: any }) => {
   const today = new Date();
   const start = new Date(config.startDate);
-  const diffTime = start.getTime() - today.getTime();
+  // @ts-ignore
+  const diffTime = start - today; 
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   const countdownText = diffDays > 0 ? `${diffDays} 天` : (diffDays === 0 ? "今天！" : "已開始");
   const countdownColor = diffDays <= 3 ? "text-red-500" : "text-white";
@@ -392,13 +394,12 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Mock Data Generators for fallback
-  const SUBJECTS = ['中文', '英文', '數學', '常識', '視藝', '體育', '音樂', '電腦'];
   const TEACHER_NAMES = ['陳大文', '李小美', '張志強', '黃雅婷', '林國華'];
   const MASTER_TEACHER_LIST_MOCK = [...TEACHER_NAMES].sort();
 
   // Firestore Sync - Load Data
   useEffect(() => {
-    if (!user || !db) return;
+    if (!auth || !db) return;
     try {
       const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), (docSnap: any) => {
         if (docSnap.exists()) {
@@ -426,7 +427,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const text = evt.target?.result as string;
+      const text = evt.target.result as string;
       const lines = text.split('\n').filter((l: string) => l.trim());
       
       const newTeacherList: any[] = [];
@@ -480,7 +481,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       setClassTeacherInfo(newClassInfo);
       setIsDataLoaded(true);
 
-      if (user && db) {
+      if (auth && db) {
         try {
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), {
             teacherList: sortedTeachers,
