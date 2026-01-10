@@ -27,7 +27,8 @@ import {
   Info,
   Upload,
   Cloud,
-  Database
+  Database,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   BarChart as RechartBar, 
@@ -41,41 +42,86 @@ import {
   Cell 
 } from 'recharts';
 
-// Firebase Imports (Direct import, Typescript friendly)
+// Firebase Imports (Safe Imports)
+// @ts-ignore
 import { initializeApp } from 'firebase/app';
+// @ts-ignore
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+// @ts-ignore
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // ==========================================
-// SECTION 0: FIREBASE CONFIG & UTILS
+// SECTION 0: FIREBASE CONFIG & UTILS (SAFE MODE)
 // ==========================================
 
-// 直接寫入您的 Firebase 設定 (最穩定)
-const firebaseConfig = {
-  apiKey: "AIzaSyAvl1XfKbQvVueXHAjv6bjUnvJmRMEp3UM",
-  authDomain: "curriculum-manager01.firebaseapp.com",
-  projectId: "curriculum-manager01",
-  storageBucket: "curriculum-manager01.firebasestorage.app",
-  messagingSenderId: "949862664220",
-  appId: "1:949862664220:web:bb114560a402f0911c77d9"
-};
+// 簡易錯誤邊界組件 (用於顯示白屏原因)
+class ErrorBoundary extends React.Component<any, any> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("App Error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-10 flex flex-col items-center justify-center h-screen bg-red-50 text-red-800">
+          <AlertTriangle size={48} className="mb-4" />
+          <h1 className="text-2xl font-bold mb-2">系統發生錯誤 (System Error)</h1>
+          <p className="mb-4">請將以下錯誤訊息截圖給管理員：</p>
+          <pre className="bg-white p-4 rounded border border-red-200 overflow-auto max-w-2xl w-full text-xs font-mono">
+            {this.state.error?.toString()}
+          </pre>
+          <button onClick={() => window.location.reload()} className="mt-6 px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700">重新整理</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
-// Initialize Firebase safely
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// 安全初始化 Firebase
+let app: any;
+let auth: any;
+let db: any;
+let isFirebaseInitialized = false;
+
+try {
+  const firebaseConfig = {
+    apiKey: "AIzaSyAvl1XfKbQvVueXHAjv6bjUnvJmRMEp3UM",
+    authDomain: "curriculum-manager01.firebaseapp.com",
+    projectId: "curriculum-manager01",
+    storageBucket: "curriculum-manager01.firebasestorage.app",
+    messagingSenderId: "949862664220",
+    appId: "1:949862664220:web:bb114560a402f0911c77d9"
+  };
+
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  isFirebaseInitialized = true;
+  console.log("Firebase initialized successfully");
+} catch (e) {
+  console.error("Firebase initialization failed:", e);
+  // 即使失敗也讓 App 繼續運行 (離線模式)
+}
+
 const appId = 'curriculum-manager-v5'; 
 
-// Hook for Auth
+// Hook for Auth (Safe)
 const useAuth = () => {
   const [user, setUser] = useState<any>(null);
   useEffect(() => {
-    if (!auth) return;
+    if (!isFirebaseInitialized || !auth) return;
     const initAuth = async () => {
       try {
         await signInAnonymously(auth);
       } catch (e) {
-        console.error("Auth failed", e);
+        console.error("Auth failed:", e);
       }
     };
     initAuth();
@@ -143,7 +189,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 p-10 flex flex-col animate-fadeIn">
         <div className="mb-8 text-center">
           <div className="inline-block bg-indigo-100 p-4 rounded-full mb-4"><Brain size={48} className="text-indigo-600" /></div>
-          <h1 className="text-3xl font-black text-slate-800 mb-2">課程指揮中心 <span className="text-indigo-600">V5.4 Stable</span></h1>
+          <h1 className="text-3xl font-black text-slate-800 mb-2">課程指揮中心 <span className="text-indigo-600">V5.5 Safe</span></h1>
           <p className="text-slate-500">系統初始化：設定活動架構、日期與雲端同步</p>
         </div>
 
@@ -152,7 +198,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block">參與年級</label>
               <div className="grid grid-cols-3 gap-3">
-                {STAFFING_LEVELS.map((level: string) => (
+                {STAFFING_LEVELS.map(level => (
                   <button key={level} onClick={() => toggleGrade(level)} className={`py-3 rounded-lg border-2 text-sm font-bold transition-all ${selectedGrades.includes(level) ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 bg-white text-slate-400 hover:bg-slate-50'}`}>
                     {level}
                   </button>
@@ -186,8 +232,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
             </div>
             
             <div className="flex items-center gap-3 text-xs text-slate-400 bg-yellow-50 p-3 rounded border border-yellow-100">
-               <Database size={16} className="text-yellow-600"/>
-               <span>資料將自動同步至雲端資料庫 (Firestore)</span>
+               <Database size={16} className={isFirebaseInitialized ? "text-green-600" : "text-gray-400"}/>
+               <span>{isFirebaseInitialized ? "雲端資料庫已連線" : "離線模式 (無雲端儲存)"}</span>
             </div>
           </div>
         </div>
@@ -233,8 +279,8 @@ const AiDesignView = () => {
 const DashboardView = ({ config }: { config: any }) => {
   const today = new Date();
   const start = new Date(config.startDate);
-  // @ts-ignore
-  const diffTime = start - today; 
+  // Safely handle date parsing
+  const diffTime = !isNaN(start.getTime()) ? start.getTime() - today.getTime() : 0;
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   const countdownText = diffDays > 0 ? `${diffDays} 天` : (diffDays === 0 ? "今天！" : "已開始");
   const countdownColor = diffDays <= 3 ? "text-red-500" : "text-white";
@@ -380,7 +426,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
 
   // Firestore Sync - Load Data
   useEffect(() => {
-    if (!auth || !db) return;
+    if (!isFirebaseInitialized || !db) return;
     try {
       const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), (docSnap: any) => {
         if (docSnap.exists()) {
@@ -462,7 +508,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       setClassTeacherInfo(newClassInfo);
       setIsDataLoaded(true);
 
-      if (auth && db) {
+      if (isFirebaseInitialized && db) {
         try {
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), {
             teacherList: sortedTeachers,
@@ -770,6 +816,94 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// --- 3.0 Main App ---
+// Use ErrorBoundary in Main App
+const App = () => {
+  return (
+    <ErrorBoundary>
+       <AppContent />
+    </ErrorBoundary>
+  );
+};
+
+// Extracted Content Component
+const AppContent = () => {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // System State
+  const [isSystemStarted, setIsSystemStarted] = useState(false);
+  const [sysConfig, setSysConfig] = useState<any>(null);
+  const [activeDay, setActiveDay] = useState('Day 1');
+  
+  // Auth State
+  const user = useAuth();
+
+  const handleWizardComplete = (config: any) => {
+    setSysConfig(config);
+    setIsSystemStarted(true);
+  };
+
+  if (!isSystemStarted) {
+    return <SetupWizard onComplete={handleWizardComplete} />;
+  }
+
+  return (
+    <div className="h-screen bg-slate-50 font-sans text-slate-900 flex overflow-hidden">
+      <nav className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-white border-r flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col relative z-30`}>
+        <div className="p-4 border-b flex items-center gap-2 bg-indigo-900 text-white h-16">
+          <Brain className="flex-shrink-0" />
+          <span className="font-bold truncate">課程指揮中心</span>
+        </div>
+        <div className="flex-1 overflow-y-auto py-4 space-y-1">
+          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Layout size={20} /><span className="truncate">總覽儀表板</span></button>
+          <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'staff' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Users size={20} /><span className="truncate">人手分配</span></button>
+          <button onClick={() => setActiveTab('venue')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'venue' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><MapPin size={20} /><span className="truncate">地點分配</span></button>
+          <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 transition-colors ${activeTab === 'ai-design' ? 'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600' : ''}`}><Cpu size={20} /><span className="truncate">AI 課程設計</span></button>
+        </div>
+        <div className="p-4 border-t text-xs text-slate-400 text-center flex flex-col items-center gap-1">
+          <span>V5.5 Safe</span>
+          <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}>
+            <Cloud size={10} /> {user ? 'Online' : 'Offline'}
+          </span>
+        </div>
+      </nav>
+
+      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        <header className="bg-white h-16 border-b px-4 flex items-center justify-between shadow-sm z-20 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
+              {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
+            </button>
+            <h1 className="text-lg font-bold text-slate-800 truncate">
+              {activeTab === 'dashboard' && '總覽儀表板'}
+              {activeTab === 'staff' && '智能人手編配系統'}
+              {activeTab === 'venue' && `地點與場地分配 (${activeDay})`}
+              {activeTab === 'ai-design' && 'AI 課程設計助手'}
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="bg-slate-100 p-1 rounded-lg flex items-center">
+               <span className="text-xs font-bold text-slate-400 px-2 uppercase">Global Day:</span>
+               <select value={activeDay} onChange={(e) => setActiveDay(e.target.value)} className="bg-transparent text-sm font-bold text-indigo-700 outline-none">
+                 {Array.from({length: sysConfig.daysCount}, (_, i) => `Day ${i+1}`).map((d: any) => <option key={d} value={d}>{d}</option>)}
+               </select>
+            </div>
+            <div className="w-8 h-8 bg-indigo-900 rounded-full flex items-center justify-center text-white text-xs font-bold">陳</div>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-hidden relative bg-slate-50">
+          {activeTab === 'dashboard' && <DashboardView config={sysConfig} />}
+          {activeTab === 'staff' && <StaffingSystem config={sysConfig} activeDay={activeDay} setActiveDay={setActiveDay} user={user} />}
+          {activeTab === 'venue' && <VenueAllocationSystem config={sysConfig} activeDay={activeDay} />}
+          {activeTab === 'ai-design' && <AiDesignView />}
+        </div>
+      </div>
     </div>
   );
 };
