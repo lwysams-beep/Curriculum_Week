@@ -31,7 +31,8 @@ import {
   Save,
   Download,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Calculator
 } from 'lucide-react';
 import { 
   BarChart as RechartBar, 
@@ -57,7 +58,6 @@ import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestor
 // SECTION 0: SAFETY & CONFIG
 // ==========================================
 
-// 1. Error Boundary (防止白畫面)
 class ErrorBoundary extends React.Component<any, any> {
   constructor(props: any) {
     super(props);
@@ -89,7 +89,7 @@ class ErrorBoundary extends React.Component<any, any> {
   }
 }
 
-// 2. Firebase Initialization (Simplified & Robust)
+// Firebase Initialization
 let app: any = null;
 let auth: any = null;
 let db: any = null;
@@ -110,7 +110,6 @@ try {
   } else {
     app = getApp();
   }
-  
   auth = getAuth(app);
   db = getFirestore(app);
   isFirebaseReady = true;
@@ -121,7 +120,6 @@ try {
 
 const appId = 'curriculum-manager-v5'; 
 
-// Hook for Auth
 const useAuth = () => {
   const [user, setUser] = useState<any>(null);
   useEffect(() => {
@@ -172,7 +170,6 @@ const ALL_CLASSES = STAFFING_LEVELS.flatMap(lvl => CLASS_SUFFIXES.map(s => `${lv
 // SECTION 2: COMPONENTS
 // ==========================================
 
-// --- Setup Wizard ---
 const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
   const [selectedGrades, setSelectedGrades] = useState<string[]>(['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
   const [daysCount, setDaysCount] = useState(4);
@@ -188,8 +185,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.6.1</span></h1>
-          <p className="text-slate-500 font-medium">Path Fix • Cloud Ready • Compact</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.7</span></h1>
+          <p className="text-slate-500 font-medium">Safe Mode • Cloud Enabled • Compact View</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -241,7 +238,6 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
   );
 };
 
-// --- DashboardView ---
 const DashboardView = ({ config }: any) => {
   const today = new Date();
   const start = new Date(config.startDate);
@@ -284,7 +280,6 @@ const DashboardView = ({ config }: any) => {
   );
 };
 
-// --- VenueAllocationSystem ---
 const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: string }) => {
   const VENUES = ['禮堂', '雨天操場'];
   const [schedule, setSchedule] = useState<any>({});
@@ -370,7 +365,6 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
   );
 };
 
-// --- AiDesignView ---
 const AiDesignView = () => {
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -399,7 +393,6 @@ const AiDesignView = () => {
   );
 };
 
-// --- Staffing System (Optimized & Cloud Saving) ---
 const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [showConfig, setShowConfig] = useState(true);
   const [defaultCapacity, setDefaultCapacity] = useState(2); 
@@ -410,7 +403,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [csvEncoding, setCsvEncoding] = useState('Big5');
   const [isSaving, setIsSaving] = useState(false);
   
-  // Real Teacher Data
   const [teacherList, setTeacherList] = useState<any[]>([]); 
   const [classTeacherInfo, setClassTeacherInfo] = useState<any>({});
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -418,7 +410,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   // Load Data
   useEffect(() => {
     if (!isFirebaseReady || !db) return;
-    // Load Teachers (Path Fixed: 6 segments)
     const unsubT = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), (docSnap: any) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
@@ -429,7 +420,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         }
       }
     });
-    // Load Schedule (Path Fixed: 6 segments)
     const unsubS = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), (docSnap: any) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
@@ -439,7 +429,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     return () => { unsubT(); unsubS(); };
   }, [user, activeDay]);
 
-  // Save to Cloud (Path Fixed: 6 segments)
   const handleSaveToCloud = async () => {
     if (!isFirebaseReady || !db) return alert("Firebase 未連線");
     setIsSaving(true);
@@ -448,7 +437,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         slots: schedule[activeDay] || [],
         updatedAt: new Date().toISOString()
       });
-      // Also save config for persistence
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), config);
       alert("✅ 儲存成功！");
     } catch (e) {
@@ -475,7 +463,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         const name = cols[1];
         if (!name) continue;
         newTeachers.push(name);
-        // Parsing logic (simplified)
         for (let j = 3; j < cols.length; j++) {
            const content = cols[j];
            if (content && content.length > 2) {
@@ -497,7 +484,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       setIsDataLoaded(true);
       
       if (isFirebaseReady && db) {
-        // Path Fixed: 6 segments
         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), {
           teacherList: sorted,
           classTeacherInfo: newClassInfo
@@ -525,6 +511,16 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     });
   }, [config, defaultCapacity, activeDay]);
 
+  const handleCapacityChange = (newCap: number) => {
+    setDefaultCapacity(newCap);
+    setSchedule((prev: any) => {
+      const currentSlots = prev[activeDay] || [];
+      // Immedately update all slots for current day
+      const updatedSlots = currentSlots.map((slot: any) => ({ ...slot, capacity: newCap }));
+      return { ...prev, [activeDay]: updatedSlots };
+    });
+  };
+
   const toggleSlotCapacity = (classId: string, period: number) => {
     setSchedule((prev: any) => {
       const dayData = [...(prev[activeDay] || [])];
@@ -544,10 +540,8 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     
     setSchedule((prev: any) => {
       const dayData = [...(prev[activeDay] || [])];
-      // Remove
       const srcIdx = dayData.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
       if (srcIdx >= 0) dayData[srcIdx] = { ...dayData[srcIdx], teachers: dayData[srcIdx].teachers.filter((t: string) => t !== name) };
-      // Add
       const tgtIdx = dayData.findIndex((s: any) => s.classId === targetClass && s.period === targetPeriod);
       if (tgtIdx >= 0 && !dayData[tgtIdx].teachers.includes(name)) {
         dayData[tgtIdx] = { ...dayData[tgtIdx], teachers: [...dayData[tgtIdx].teachers, name] };
@@ -561,6 +555,81 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const info = classTeacherInfo[cls] || { head: '-', subjects: [] };
     setSelectedClassInfo({ id: cls, info });
   };
+
+  const handleAutoAssign = () => {
+    if (!isDataLoaded && !window.confirm("尚未上載 CSV，將使用模擬數據。是否繼續？")) return;
+    
+    const daySchedule = schedule[activeDay] || [];
+    const totalSlotsNeeded = daySchedule.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
+    const teachersPool = isDataLoaded ? teacherList : ['T1', 'T2', 'T3']; // Fallback
+    const baselineLoad = Math.ceil(totalSlotsNeeded / teachersPool.length) || 1;
+    
+    if(!window.confirm(`智能編配 (V5.7)\n\n當日人次: ${totalSlotsNeeded}\n可用教師: ${teachersPool.length}\n平均基準線: ${baselineLoad} 節/人`)) return;
+    
+    const newSchedule = { ...schedule };
+    const dayAssignments = JSON.parse(JSON.stringify(newSchedule[activeDay] || [])); // Deep copy
+    
+    const currentLoad: any = {};
+    teachersPool.forEach((t: string) => currentLoad[t] = 0);
+    // Count existing loads
+    dayAssignments.forEach((slot: any) => slot.teachers.forEach((t: any) => currentLoad[t] = (currentLoad[t]||0) + 1));
+
+    dayAssignments.forEach((slot: any) => {
+      const needed = slot.capacity - slot.teachers.length;
+      if (needed <= 0) return;
+      
+      let candidates = teachersPool.map((tName: string) => {
+        // Basic eligibility
+        if (slot.teachers.includes(tName)) return null;
+        // Busy check (same period different class)
+        const isBusy = dayAssignments.some((s: any) => s.period === slot.period && s.classId !== slot.classId && s.teachers.includes(tName));
+        if (isBusy) return null;
+
+        let score = 100;
+        
+        // 1. Baseline Load Balance
+        if (currentLoad[tName] >= baselineLoad) score -= 500; // Heavy penalty if exceeding average
+
+        // 2. Role Priority (Using real CSV data)
+        const info = classTeacherInfo[slot.classId];
+        if (info) {
+          if (info.head === tName) score += 50; // Class teacher priority
+          if (info.subjects.some((s:any) => s.teacher === tName)) score += 30; // Subject teacher priority
+        }
+
+        return { name: tName, score };
+      }).filter(Boolean) as {name: string, score: number}[];
+
+      candidates.sort((a, b) => b.score - a.score);
+      const toAdd = candidates.slice(0, needed).map(c => c.name);
+      toAdd.forEach(t => currentLoad[t]++);
+      slot.teachers = [...slot.teachers, ...toAdd];
+    });
+    setSchedule({ ...newSchedule, [activeDay]: dayAssignments });
+  };
+  
+  const handleClearDay = () => {
+     if(!window.confirm("確定清空？")) return;
+     setSchedule((prev: any) => ({ ...prev, [activeDay]: prev[activeDay].map((slot: any) => ({ ...slot, teachers: [] })) }));
+  };
+
+  // Improved Stats Data for Composite Chart
+  const statsData = useMemo(() => {
+    const data: any[] = [];
+    const currentAssignments = schedule[activeDay] || [];
+    const totalSlots = currentAssignments.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
+    const teachersPool = isDataLoaded ? teacherList : ['T1'];
+    const baseline = Math.ceil(totalSlots / teachersPool.length);
+
+    teachersPool.forEach((tName: string) => {
+      let current = 0;
+      currentAssignments.forEach((slot: any) => { if (slot.teachers.includes(tName)) current++; });
+      if (current > 0 || isDataLoaded) { // Show all teachers if data loaded
+        data.push({ name: tName, current, baseline });
+      }
+    });
+    return data.sort((a, b) => b.current - a.current);
+  }, [schedule, activeDay, teacherList, isDataLoaded]);
 
   const filteredClasses = ALL_CLASSES.filter(c => config.selectedGrades.includes('P'+c.charAt(0)));
 
@@ -576,7 +645,10 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
            </div>
         </div>
         <div className="flex gap-2">
+           <button onClick={() => setShowStatsModal(true)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded text-xs font-bold hover:bg-slate-50"><BarChart size={14}/> 統計</button>
+           <button onClick={handleAutoAssign} className={`flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 shadow-sm`}><Calculator size={14}/> 智能編配</button>
            <button onClick={handleSaveToCloud} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 shadow-sm"><Save size={14}/> {isSaving ? '儲存中...' : '儲存編配'}</button>
+           <button onClick={handleClearDay} className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:bg-red-50 rounded text-xs font-bold"><Trash2 size={14}/></button>
         </div>
       </div>
 
@@ -588,7 +660,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                   <div className="flex justify-between items-center mb-2">
                     <label className="text-[10px] font-bold text-indigo-700 uppercase flex items-center gap-1"><Upload size={12}/> 匯入教師 (CSV)</label>
                     <select value={csvEncoding} onChange={(e) => setCsvEncoding(e.target.value)} className="text-[9px] border rounded bg-white px-1">
-                      <option value="Big5">Big5 (港台)</option>
+                      <option value="Big5">Big5</option>
                       <option value="UTF-8">UTF-8</option>
                     </select>
                   </div>
@@ -596,16 +668,14 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                   {isDataLoaded && <div className="mt-1 text-[10px] text-green-600 font-bold">已載入 {teacherList.length} 位教師</div>}
                 </div>
                 
-                {/* Capacity Slider */}
                 <div>
-                   <label className="text-[10px] font-bold text-slate-400 mb-1 block uppercase">預設人手</label>
+                   <label className="text-[10px] font-bold text-slate-400 mb-1 block uppercase">預設人手 (即時更新)</label>
                    <div className="flex items-center gap-2">
-                     <input type="range" min="1" max="4" step="1" value={defaultCapacity} onChange={(e: any) => setDefaultCapacity(parseInt(e.target.value))} className="flex-1 accent-indigo-600 h-1.5 bg-slate-200 rounded-lg"/>
+                     <input type="range" min="1" max="4" step="1" value={defaultCapacity} onChange={(e: any) => handleCapacityChange(parseInt(e.target.value))} className="flex-1 accent-indigo-600 h-1.5 bg-slate-200 rounded-lg"/>
                      <span className="text-sm font-bold text-indigo-600">{defaultCapacity}</span>
                    </div>
                 </div>
 
-                {/* Class Info */}
                 {selectedClassInfo ? (
                   <div className="bg-slate-50 rounded border border-slate-200 p-3 shadow-inner">
                      <div className="flex justify-between mb-2 border-b pb-1">
@@ -627,7 +697,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
           </div>
         )}
 
-        {/* Main Grid (Compact View) */}
         <div className="flex-1 overflow-auto bg-slate-100/50 p-4">
           <div className="bg-white rounded shadow-sm border border-slate-300 min-w-[800px]">
              <div className="grid bg-slate-50 border-b sticky top-0 z-10" style={{ gridTemplateColumns: `60px repeat(${config.periodsCount}, 1fr)` }}>
@@ -668,16 +737,40 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
           </div>
         </div>
       </div>
-    </div>
-  );
-};
 
-// --- Main App ---
-const App = () => {
-  return (
-    <ErrorBoundary>
-       <AppContent />
-    </ErrorBoundary>
+      {showStatsModal && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden animate-scaleIn">
+            <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><BarChart className="text-indigo-600" /> 人手編配統計</h2>
+                <p className="text-sm text-slate-500 mt-1">基準線 (Baseline): 藍色代表已編，灰色代表平均建議值</p>
+              </div>
+              <button onClick={() => setShowStatsModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24} className="text-slate-500" /></button>
+            </div>
+            <div className="flex-1 p-8 overflow-hidden flex flex-col">
+              <div className="flex-1 min-h-0 border border-slate-100 rounded-xl bg-slate-50/50 p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartBar data={statsData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }} barGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} tick={{fontSize: 10, fill: '#64748b'}} height={80}/>
+                    <YAxis tick={{fontSize: 12, fill: '#64748b'}} />
+                    <Tooltip cursor={{fill: 'rgba(99, 102, 241, 0.05)'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}/>
+                    <Legend verticalAlign="top" height={36}/>
+                    <Bar dataKey="baseline" name="建議平均 (Baseline)" fill="#cbd5e1" radius={[4, 4, 4, 4]} barSize={12} />
+                    <Bar dataKey="current" name="實際編配 (Current)" fill="#4f46e5" radius={[4, 4, 4, 4]} barSize={12}>
+                       {statsData.map((entry: any, index: number) => (
+                         <Cell key={`cell-${index}`} fill={entry.current > entry.baseline + 2 ? '#ef4444' : (entry.current < entry.baseline - 2 ? '#f59e0b' : '#4f46e5')} />
+                       ))}
+                    </Bar>
+                  </RechartBar>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -712,7 +805,7 @@ const AppContent = () => {
           <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='ai-design'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Cpu size={18} /><span className="text-sm font-bold">AI 課程設計</span></button>
         </div>
         <div className="p-4 border-t text-[10px] text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V5.6 Final</span>
+          <span>V5.7 Final</span>
           <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}><Cloud size={10} /> {user ? 'Online' : 'Offline'}</span>
         </div>
       </nav>
@@ -737,5 +830,13 @@ const AppContent = () => {
     </div>
   );
 }
+
+const App = () => {
+  return (
+    <ErrorBoundary>
+       <AppContent />
+    </ErrorBoundary>
+  );
+};
 
 export default App;
