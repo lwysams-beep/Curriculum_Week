@@ -105,7 +105,6 @@ const firebaseConfig = {
 };
 
 try {
-  // Check if firebase apps already exist to avoid "Duplicate App" error
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
   } else {
@@ -189,8 +188,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.6</span></h1>
-          <p className="text-slate-500 font-medium">Safe Mode • Cloud Enabled • Compact View</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V5.6.1</span></h1>
+          <p className="text-slate-500 font-medium">Path Fix • Cloud Ready • Compact</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -242,7 +241,7 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
   );
 };
 
-// --- Missing Component 1: DashboardView ---
+// --- DashboardView ---
 const DashboardView = ({ config }: any) => {
   const today = new Date();
   const start = new Date(config.startDate);
@@ -285,7 +284,7 @@ const DashboardView = ({ config }: any) => {
   );
 };
 
-// --- Missing Component 2: VenueAllocationSystem ---
+// --- VenueAllocationSystem ---
 const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: string }) => {
   const VENUES = ['禮堂', '雨天操場'];
   const [schedule, setSchedule] = useState<any>({});
@@ -371,7 +370,7 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
   );
 };
 
-// --- Missing Component 3: AiDesignView ---
+// --- AiDesignView ---
 const AiDesignView = () => {
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -419,8 +418,8 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   // Load Data
   useEffect(() => {
     if (!isFirebaseReady || !db) return;
-    // Load Teachers
-    const unsubT = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), (docSnap: any) => {
+    // Load Teachers (Path Fixed: 6 segments)
+    const unsubT = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), (docSnap: any) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
         if (d.teacherList) {
@@ -430,8 +429,8 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         }
       }
     });
-    // Load Schedule
-    const unsubS = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', `schedule_${activeDay}`), (docSnap: any) => {
+    // Load Schedule (Path Fixed: 6 segments)
+    const unsubS = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), (docSnap: any) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
         if (d.slots) setSchedule((p: any) => ({ ...p, [activeDay]: d.slots }));
@@ -440,17 +439,17 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     return () => { unsubT(); unsubS(); };
   }, [user, activeDay]);
 
-  // Save to Cloud
+  // Save to Cloud (Path Fixed: 6 segments)
   const handleSaveToCloud = async () => {
     if (!isFirebaseReady || !db) return alert("Firebase 未連線");
     setIsSaving(true);
     try {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', `schedule_${activeDay}`), {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), {
         slots: schedule[activeDay] || [],
         updatedAt: new Date().toISOString()
       });
       // Also save config for persistence
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sys_config'), config);
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), config);
       alert("✅ 儲存成功！");
     } catch (e) {
       console.error(e);
@@ -498,7 +497,8 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       setIsDataLoaded(true);
       
       if (isFirebaseReady && db) {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), {
+        // Path Fixed: 6 segments
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), {
           teacherList: sorted,
           classTeacherInfo: newClassInfo
         });
@@ -658,7 +658,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                              </div>
                            ))}
                          </div>
-                         <button onClick={(e) => {e.stopPropagation(); toggleSlotCapacity(cls, p)}} className="absolute bottom-0 right-0 w-3 h-3 bg-slate-200 hover:bg-slate-300 text-[8px] flex items-center justify-center rounded-tl text-slate-600 font-bold leading-none">{slot.capacity}</button>
+                         <button onClick={(e) => {e.stopPropagation(); toggleSlotCapacity(cls, p)}} className="absolute bottom-0 right-0 w-3 h-3 bg-slate-200 hover:bg-slate-300 text-[8px] flex items-center justify-center rounded-tl text-slate-600 font-bold leading-none z-10">{slot.capacity}</button>
                        </div>
                      );
                    })}
