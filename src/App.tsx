@@ -42,15 +42,17 @@ import {
 } from 'recharts';
 
 // Firebase Imports
+// @ts-ignore
 import { initializeApp } from 'firebase/app';
+// @ts-ignore
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from 'firebase/firestore';
+// @ts-ignore
+import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // ==========================================
 // SECTION 0: FIREBASE CONFIG & UTILS
 // ==========================================
 
-// 解決 TypeScript 全域變數錯誤
 const getGlobalVar = (key: string) => {
   if (typeof window !== 'undefined' && (window as any)[key]) {
     return (window as any)[key];
@@ -68,7 +70,7 @@ const getFirebaseConfig = () => {
 };
 
 const firebaseConfig = getFirebaseConfig();
-// 防呆機制：如果沒有 config，不初始化 app 以免崩潰
+// Conditional initialization
 const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfig) : undefined;
 const auth = app ? getAuth(app) : undefined;
 const db = app ? getFirestore(app) : undefined;
@@ -82,7 +84,7 @@ const useAuth = () => {
     if (!auth) return;
     const initAuth = async () => {
       if (initialToken) {
-        // Handle custom token
+        // Handle custom token if provided
       } 
       try {
         await signInAnonymously(auth);
@@ -139,8 +141,8 @@ const ALL_CLASSES = STAFFING_LEVELS.flatMap(lvl => CLASS_SUFFIXES.map(s => `${lv
 // SECTION 2: SUB-COMPONENTS
 // ==========================================
 
-// --- 2.0 Setup Wizard ---
-const SetupWizard = ({ onComplete }: any) => {
+// --- Setup Wizard ---
+const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
   const [selectedGrades, setSelectedGrades] = useState<string[]>(['P1', 'P2', 'P3', 'P4', 'P5', 'P6']);
   const [daysCount, setDaysCount] = useState(4);
   const [periodsCount, setPeriodsCount] = useState(6);
@@ -242,10 +244,9 @@ const AiDesignView = () => {
 };
 
 // --- Dashboard View ---
-const DashboardView = ({ config }: any) => {
+const DashboardView = ({ config }: { config: any }) => {
   const today = new Date();
   const start = new Date(config.startDate);
-  // TypeScript Fix: Cast to number for arithmetic
   const diffTime = start.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   const countdownText = diffDays > 0 ? `${diffDays} 天` : (diffDays === 0 ? "今天！" : "已開始");
@@ -285,7 +286,7 @@ const DashboardView = ({ config }: any) => {
 };
 
 // --- Venue System ---
-const VenueAllocationSystem = ({ config, activeDay }: any) => {
+const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: string }) => {
   const VENUES = ['禮堂', '雨天操場'];
   const [schedule, setSchedule] = useState<any>({});
   const [draggedClass, setDraggedClass] = useState<any>(null);
@@ -387,6 +388,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Mock Data Generators for fallback
+  const SUBJECTS = ['中文', '英文', '數學', '常識', '視藝', '體育', '音樂', '電腦'];
   const TEACHER_NAMES = ['陳大文', '李小美', '張志強', '黃雅婷', '林國華'];
   const MASTER_TEACHER_LIST_MOCK = [...TEACHER_NAMES].sort();
 
@@ -394,7 +396,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   useEffect(() => {
     if (!user || !db) return;
     try {
-      const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), (docSnap) => {
+      const unsub = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_list'), (docSnap: any) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.teacherList && data.teacherList.length > 0) {
@@ -420,8 +422,8 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const text = evt.target.result as string;
-      const lines = text.split('\n').filter(l => l.trim());
+      const text = evt.target?.result as string;
+      const lines = text.split('\n').filter((l: string) => l.trim());
       
       const newTeacherList: any[] = [];
       const newSubjects: any = {};
@@ -431,7 +433,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       ALL_CLASSES.forEach(cls => newClassInfo[cls] = { head: '待定', subjects: [] });
 
       for (let i = 2; i < lines.length; i++) {
-        const cols = lines[i].split(',').map(c => c.trim());
+        const cols = lines[i].split(',').map((c: string) => c.trim());
         const name = cols[1];
         
         if (!name) continue; 
