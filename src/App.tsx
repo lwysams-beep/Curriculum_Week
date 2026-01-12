@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Calendar, 
   Users, 
@@ -204,8 +204,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.2</span></h1>
-          <p className="text-slate-500 font-medium">Larger Font • Clear View • Cloud Sync</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.3</span></h1>
+          <p className="text-slate-500 font-medium">Smart Algo V3 • Undo Function • Layout Optimized</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -303,8 +303,6 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
   const VENUES = ['禮堂', '雨天操場'];
   const [schedule, setSchedule] = useState<any>({});
   const [draggedClass, setDraggedClass] = useState<any>(null);
-  
-  // V6.0: Grade Filter for Venue
   const [activeGradeFilter, setActiveGradeFilter] = useState<string>('ALL');
 
   useEffect(() => {
@@ -350,13 +348,12 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
     });
   };
 
-  // V6.1: Show ALL classes for Venue Allocation regardless of setup wizard config
   const availableClasses = ALL_CLASSES
+    .filter(c => config.selectedGrades.includes('P'+c.charAt(0)))
     .filter(c => activeGradeFilter === 'ALL' || c.startsWith(activeGradeFilter.replace('P','')));
 
   return (
     <div className="flex h-full bg-slate-50 flex-col">
-       {/* Top Filter Bar */}
        <div className="bg-white border-b px-4 py-2 flex items-center gap-2 shadow-sm">
           <Filter size={16} className="text-slate-400 mr-2"/>
           <button onClick={() => setActiveGradeFilter('ALL')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeGradeFilter==='ALL'?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>全部</button>
@@ -366,7 +363,6 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
        </div>
 
        <div className="flex flex-1 overflow-hidden">
-        {/* Left: Class List */}
         <div className="w-40 bg-white border-r p-4 overflow-y-auto flex-shrink-0">
           <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 text-xs uppercase tracking-wider"><Users size={14}/> 班級列表 ({activeGradeFilter})</h3>
           <div className="space-y-2">
@@ -376,7 +372,6 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
           </div>
         </div>
         
-        {/* Right: Venue Schedule Grid */}
         <div className="flex-1 overflow-auto p-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-w-[800px]">
             {VENUES.map(venue => (
@@ -388,7 +383,6 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
                       <div className="text-xs font-bold text-slate-400 mb-2 text-center">第 {p} 節</div>
                       <div className="flex flex-wrap gap-1">
                         {schedule[activeDay]?.[venue]?.[p]?.map((cls: string) => {
-                          // Check if class belongs to current filter (for highlighting)
                           const isRelevant = activeGradeFilter === 'ALL' || cls.startsWith(activeGradeFilter.replace('P',''));
                           return (
                             <div key={cls} className={`text-xs font-bold px-2 py-1 rounded flex items-center gap-1 ${isRelevant ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-400'}`}>
@@ -438,7 +432,7 @@ const AiDesignView = () => {
   );
 };
 
-// --- Staffing System (Dual Mode & Job Weights & Pool) ---
+// --- Staffing System (V6.3 Upgrade) ---
 const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [showConfig, setShowConfig] = useState(true);
   const [defaultCapacity, setDefaultCapacity] = useState(2); 
@@ -449,18 +443,37 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [csvEncoding, setCsvEncoding] = useState('Big5');
   const [isSaving, setIsSaving] = useState(false);
   
-  // Real Teacher Data
+  // Data State
   const [teacherList, setTeacherList] = useState<any[]>([]); 
   const [teacherDetails, setTeacherDetails] = useState<any>({}); 
   const [classTeacherInfo, setClassTeacherInfo] = useState<any>({});
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // New V5.8 States
+  // States
   const [assignMode, setAssignMode] = useState<'AVERAGE' | 'JOB_BASED'>('AVERAGE');
   const [excludedTeachers, setExcludedTeachers] = useState<string[]>([]);
   const [jobTargets, setJobTargets] = useState<any>({ '副校長': 1, '主任': 3 });
   const [activePoolPeriod, setActivePoolPeriod] = useState(1);
-  const [autoExcludedReasons, setAutoExcludedReasons] = useState<any>({}); // { TeacherName: "Reason" }
+  const [autoExcludedReasons, setAutoExcludedReasons] = useState<any>({}); 
+
+  // V6.3: Undo History
+  const [history, setHistory] = useState<any[]>([]);
+
+  // Function to save current state to history
+  const saveHistory = () => {
+    setHistory(prev => {
+      // Limit history stack size if needed (e.g., last 20 steps)
+      const newHistory = [...prev, JSON.parse(JSON.stringify(schedule))]; 
+      return newHistory.slice(-20); 
+    });
+  };
+
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const previousSchedule = history[history.length - 1];
+    setSchedule(previousSchedule);
+    setHistory(prev => prev.slice(0, -1));
+  };
 
   // Load Data
   useEffect(() => {
@@ -472,14 +485,10 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
           setTeacherList(d.teacherList);
           setTeacherDetails(d.teacherDetails || {});
           setClassTeacherInfo(d.classTeacherInfo || {});
-          
-          // Load exclusions if saved previously (optional, or rely on re-parsing)
           if(d.autoExcludedReasons) setAutoExcludedReasons(d.autoExcludedReasons);
           if(d.excludedTeachers) {
-             // Merge manual exclusions with existing ones if needed, or overwrite
              setExcludedTeachers(prev => [...new Set([...prev, ...d.excludedTeachers])]);
           }
-
           setIsDataLoaded(true);
         }
       }
@@ -511,7 +520,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     }
   };
 
-  // V6.1: Dual CSV Import Handler with LAOH Detection Fix
   const handleFileUpload = (e: any) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -526,24 +534,17 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       const isTeacherListFile = lines[0].includes("姓名") || lines[0].includes("特別活動") || lines[1].includes("姓名");
       
       if (isTeacherListFile) {
-         // Process "25-26 教師名單.csv" (Exclusions)
          console.log("Processing Special Duties List...");
          const newExclusions: string[] = [];
          const newReasons: any = {};
-         
-         // Start from row 2 (index 1)
          for (let i = 1; i < lines.length; i++) {
-            const cols = lines[i].split(',').map((c: string) => c.trim().replace(/"/g, '')); // Remove quotes
-            // Col B (Index 1): Special Activity
-            // Col C (Index 2): Name
+            const cols = lines[i].split(',').map((c: string) => c.trim().replace(/"/g, '')); 
             const activity = cols[1] || '';
             const name = cols[2];
-
-            // V6.1: Fix logic for "P.6 LAOH" detection (ignore case and spacing)
             const activityUpper = activity.toUpperCase().replace(/\s/g, '');
             if (name && (activityUpper.includes("P.6LAOH") || activityUpper.includes("P.5LAOH") || activityUpper.includes("LAOH"))) {
                newExclusions.push(name);
-               newReasons[name] = activity; // Store reason
+               newReasons[name] = activity;
             }
          }
          
@@ -551,9 +552,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
          setAutoExcludedReasons(prev => ({...prev, ...newReasons}));
          alert(`✅ 已匯入特別職務名單，自動排除 ${newExclusions.length} 位老師 (LAOH)`);
          
-         // Save exclusions to cloud
          if (isFirebaseReady && db) {
-            // Merge update
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), {
                excludedTeachers: newExclusions,
                autoExcludedReasons: newReasons
@@ -561,7 +560,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
          }
 
       } else {
-         // Process "2526_總教師時間表_v3.csv" (Main Schedule)
          console.log("Processing Main Schedule...");
          const newTeachers: any[] = [];
          const newDetails: any = {};
@@ -638,6 +636,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   }, [config, defaultCapacity, activeDay]);
 
   const handleCapacityChange = (newCap: number) => {
+    saveHistory(); // Save before change
     setDefaultCapacity(newCap);
     setSchedule((prev: any) => {
       const currentSlots = prev[activeDay] || [];
@@ -647,6 +646,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   };
 
   const toggleSlotCapacity = (classId: string, period: number) => {
+    saveHistory(); // Save before change
     setSchedule((prev: any) => {
       const dayData = [...(prev[activeDay] || [])];
       const idx = dayData.findIndex((s: any) => s.classId === classId && s.period === period);
@@ -657,13 +657,12 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     });
   };
 
-  // V5.9 Handle Dropping Grid Teacher -> Pool (Remove from Grid)
   const handlePoolDrop = (e: any) => {
     e.preventDefault();
     if (!draggedTeacher) return;
     const { name, fromClass, fromPeriod } = draggedTeacher;
-    // Only if coming from a grid slot (not pool-to-pool)
     if (fromClass !== 'POOL') {
+       saveHistory(); // Save
        setSchedule((prev: any) => {
           const dayData = [...(prev[activeDay] || [])];
           const srcIdx = dayData.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
@@ -685,6 +684,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const { name, fromClass, fromPeriod } = draggedTeacher;
     if (fromClass === targetClass && fromPeriod === targetPeriod) return;
     
+    saveHistory(); // Save
     setSchedule((prev: any) => {
       const dayData = [...(prev[activeDay] || [])];
       // Remove
@@ -707,86 +707,121 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     setSelectedClassInfo({ id: cls, info });
   };
 
+  // V6.3: Advanced Smart Assign
   const handleAutoAssign = () => {
     if (!isDataLoaded && !window.confirm("尚未上載 CSV，將使用模擬數據。是否繼續？")) return;
     
+    saveHistory(); // Save
+
     const daySchedule = schedule[activeDay] || [];
     const totalSlotsNeeded = daySchedule.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
     
     const availableTeachers = (isDataLoaded ? teacherList : ['T1']).filter((t: string) => !excludedTeachers.includes(t));
     const totalTeachers = availableTeachers.length;
     
-    // 1. Calculate Baseline: Total Slots / Total Teachers
     const baselineLoad = Math.ceil(totalSlotsNeeded / (totalTeachers || 1));
     
-    if(!window.confirm(`智能編配 (V5.10)\n\n當日人次: ${totalSlotsNeeded}\n可用教師: ${availableTeachers.length}\n平均基準線: ${baselineLoad} 節/人\n\n策略：\n1. 班主任先填滿至平均\n2. 科任填滿至平均\n3. 餘下由班主任承擔`)) return;
+    if(!window.confirm(`智能編配 (V6.3)\n\n平均基準線: ${baselineLoad} 節/人\n策略：1.班主任 2.科任 3.輪替補位 4.班主任補位 5.最低者補位`)) return;
     
     const newSchedule = { ...schedule };
     const dayAssignments = JSON.parse(JSON.stringify(newSchedule[activeDay] || [])); 
     
+    // Init Load Tracker
     const currentLoad: any = {};
     availableTeachers.forEach((t: string) => currentLoad[t] = 0);
-    
     dayAssignments.forEach((slot: any) => {
         slot.teachers.forEach((t: any) => {
              if (currentLoad[t] !== undefined) currentLoad[t]++;
         });
     });
 
+    // Helper: Is Teacher Available in this Slot?
+    const isTeacherAvailable = (tName: string, slot: any) => {
+        if (slot.teachers.includes(tName)) return false;
+        const isBusy = dayAssignments.some((s: any) => s.period === slot.period && s.classId !== slot.classId && s.teachers.includes(tName));
+        return !isBusy;
+    };
+
+    // --- PHASE 1: Priority Filling (Up to Baseline) ---
     dayAssignments.forEach((slot: any) => {
       const needed = slot.capacity - slot.teachers.length;
       if (needed <= 0) return;
       
-      const classInfo = classTeacherInfo[slot.classId];
-      const classHead = classInfo?.head;
-      const subjectTeachers = classInfo?.subjects?.map((s: any) => s.teacher) || [];
-
-      let candidates = availableTeachers.map((tName: string) => {
-        if (slot.teachers.includes(tName)) return null;
-        const isBusy = dayAssignments.some((s: any) => s.period === slot.period && s.classId !== slot.classId && s.teachers.includes(tName));
-        if (isBusy) return null;
-
-        let tier = 6; 
-
-        const isHead = (tName === classHead);
-        const isSubject = subjectTeachers.includes(tName);
-        const isUnderLoaded = currentLoad[tName] < baselineLoad;
-
-        if (isHead && isUnderLoaded) {
-            tier = 1; 
-        } else if (isSubject && isUnderLoaded) {
-            tier = 2; 
-        } else if (isHead && !isUnderLoaded) {
-            tier = 3; 
-        } else if (isSubject && !isUnderLoaded) {
-            tier = 4; 
-        } else if (isUnderLoaded) {
-            tier = 5; 
-        } else {
-            tier = 6; 
-        }
-
-        return { 
-            name: tName, 
-            tier: tier,
-            load: currentLoad[tName] 
-        };
-      }).filter(Boolean) as {name: string, tier: number, load: number}[];
-
-      candidates.sort((a, b) => {
-          if (a.tier !== b.tier) return a.tier - b.tier;
-          return a.load - b.load;
-      });
-
-      const toAdd = candidates.slice(0, needed).map(c => c.name);
-      toAdd.forEach(t => currentLoad[t]++);
-      slot.teachers = [...slot.teachers, ...toAdd];
+      const info = classTeacherInfo[slot.classId];
+      const classHead = info?.head;
+      const subjects = info?.subjects?.map((s:any) => s.teacher) || [];
+      
+      // 1. Class Head (Under Baseline)
+      if (classHead && isTeacherAvailable(classHead, slot) && currentLoad[classHead] < baselineLoad && slot.teachers.length < slot.capacity) {
+           slot.teachers.push(classHead);
+           currentLoad[classHead]++;
+      }
+      
+      // 2. Subject Teachers (Under Baseline)
+      if (slot.teachers.length < slot.capacity) {
+         for (const t of subjects) {
+             if (isTeacherAvailable(t, slot) && currentLoad[t] < baselineLoad && slot.teachers.length < slot.capacity) {
+                 slot.teachers.push(t);
+                 currentLoad[t]++;
+                 if (slot.teachers.length >= slot.capacity) break;
+             }
+         }
+      }
     });
+
+    // --- PHASE 2: Round Robin Filling (Underloaded Teachers) ---
+    // We need to fill remaining slots using teachers who are still under baseline
+    // Loop through slots again
+    dayAssignments.forEach((slot: any) => {
+       const needed = slot.capacity - slot.teachers.length;
+       if (needed <= 0) return;
+
+       // Find candidates under baseline
+       let candidates = availableTeachers.filter((t: string) => currentLoad[t] < baselineLoad && isTeacherAvailable(t, slot));
+       // Sort by load asc (least loaded first)
+       candidates.sort((a: string, b: string) => currentLoad[a] - currentLoad[b]);
+       
+       for (let i = 0; i < needed; i++) {
+           if (candidates.length > 0) {
+               const t = candidates.shift(); // Take best
+               slot.teachers.push(t);
+               currentLoad[t]++;
+           }
+       }
+    });
+
+    // --- PHASE 3: Overflow Filling (If still empty) ---
+    // 4. Class Head (Overflow)
+    dayAssignments.forEach((slot: any) => {
+        if (slot.teachers.length >= slot.capacity) return;
+        const info = classTeacherInfo[slot.classId];
+        const classHead = info?.head;
+        if (classHead && isTeacherAvailable(classHead, slot)) {
+            slot.teachers.push(classHead);
+            currentLoad[classHead]++;
+        }
+    });
+
+    // 5. Least Loaded (Overflow)
+    dayAssignments.forEach((slot: any) => {
+        if (slot.teachers.length >= slot.capacity) return;
+        
+        let candidates = availableTeachers.filter((t: string) => isTeacherAvailable(t, slot));
+        candidates.sort((a: string, b: string) => currentLoad[a] - currentLoad[b]);
+        
+        if (candidates.length > 0) {
+            const t = candidates[0];
+            slot.teachers.push(t);
+            currentLoad[t]++;
+        }
+    });
+
     setSchedule({ ...newSchedule, [activeDay]: dayAssignments });
   };
   
   const handleClearDay = () => {
      if(!window.confirm("確定清空？")) return;
+     saveHistory();
      setSchedule((prev: any) => ({ ...prev, [activeDay]: prev[activeDay].map((slot: any) => ({ ...slot, teachers: [] })) }));
   };
 
@@ -798,8 +833,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const data: any[] = [];
     const currentAssignments = schedule[activeDay] || [];
     const teachersPool = isDataLoaded ? teacherList : ['T1'];
-    
-    // Simple baseline for chart visualization
     const totalSlots = currentAssignments.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
     const avgBaseline = Math.ceil(totalSlots / teachersPool.length);
 
@@ -813,7 +846,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     return data.sort((a, b) => b.current - a.current);
   }, [schedule, activeDay, teacherList, isDataLoaded]);
 
-  // Pool Logic
   const poolTeachers = useMemo(() => {
     if (!isDataLoaded) return [];
     const currentAssignments = schedule[activeDay] || [];
@@ -830,6 +862,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       <div className="bg-white border-b px-4 py-2 flex justify-between items-center shadow-sm z-20">
         <div className="flex items-center gap-4">
            <button onClick={() => setShowConfig(!showConfig)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500"><Settings size={18} /></button>
+           <button onClick={handleUndo} disabled={history.length === 0} className={`p-1.5 rounded border flex items-center gap-1 ${history.length > 0 ? 'bg-white text-indigo-600 hover:bg-indigo-50 border-indigo-200' : 'bg-slate-100 text-slate-300 border-slate-200'}`}><Undo2 size={16}/> 撤銷</button>
            <div className="flex bg-slate-100 p-0.5 rounded">
              {Array.from({length: config.daysCount}, (_, i) => `Day ${i+1}`).map((d: any) => (
                <button key={d} onClick={() => setActiveDay(d)} className={`px-3 py-1 text-xs font-bold rounded ${activeDay === d ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>{d}</button>
@@ -893,8 +926,30 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                      )}
                   </div>
                 </div>
+
+                {/* 3. Class Info (Moved Here) */}
+                <div className="border-b pb-4 mb-4">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><BookOpen size={14}/> 班級師資資訊</h4>
+                  {selectedClassInfo ? (
+                    <div className="bg-slate-50 rounded border border-slate-200 p-3 shadow-inner">
+                       <div className="flex justify-between mb-2 border-b pb-1">
+                         <span className="font-bold text-indigo-700">{selectedClassInfo.id}</span>
+                         <span className="text-[10px] text-slate-500">班主任: {selectedClassInfo.info.head}</span>
+                       </div>
+                       <div className="h-32 overflow-y-auto custom-scrollbar space-y-1">
+                         {selectedClassInfo.info.subjects.map((s:any, i:number) => (
+                           <div key={i} className="flex justify-between text-[10px] bg-white p-1 rounded border border-slate-100">
+                             <span className="text-slate-500">{s.subject}</span><span className="font-bold">{s.teacher}</span>
+                           </div>
+                         ))}
+                       </div>
+                    </div>
+                  ) : (
+                    <div className="text-center text-slate-300 text-xs py-4 border-2 border-dashed rounded">點擊課節查看詳情</div>
+                  )}
+                </div>
                 
-                {/* 3. Mode & Capacity */}
+                {/* 4. Mode & Capacity */}
                 <div className="space-y-4 border-b pb-4">
                    <div>
                      <label className="text-[10px] font-bold text-slate-400 mb-1 block uppercase">編配模式</label>
@@ -918,7 +973,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                    </div>
                 </div>
 
-                {/* 4. Exclusions */}
+                {/* 5. Exclusions */}
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 mb-2 block uppercase flex items-center gap-1"><UserX size={12}/> 不可編堂名單 ({excludedTeachers.length})</label>
                   <div className="max-h-32 overflow-y-auto border rounded p-1 bg-slate-50">
@@ -933,25 +988,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                     ))}
                   </div>
                 </div>
-
-                {/* 5. Class Info */}
-                {selectedClassInfo ? (
-                  <div className="bg-slate-50 rounded border border-slate-200 p-3 shadow-inner">
-                     <div className="flex justify-between mb-2 border-b pb-1">
-                       <span className="font-bold text-indigo-700">{selectedClassInfo.id}</span>
-                       <span className="text-[10px] text-slate-500">班主任: {selectedClassInfo.info.head}</span>
-                     </div>
-                     <div className="h-32 overflow-y-auto custom-scrollbar space-y-1">
-                       {selectedClassInfo.info.subjects.map((s:any, i:number) => (
-                         <div key={i} className="flex justify-between text-[10px] bg-white p-1 rounded border border-slate-100">
-                           <span className="text-slate-500">{s.subject}</span><span className="font-bold">{s.teacher}</span>
-                         </div>
-                       ))}
-                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center text-slate-300 text-xs py-4 border-2 border-dashed rounded">點擊課節查看詳情</div>
-                )}
              </div>
           </div>
         )}
@@ -1065,7 +1101,7 @@ const AppContent = () => {
           <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='ai-design'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Cpu size={18} /><span className="text-sm font-bold">AI 課程設計</span></button>
         </div>
         <div className="p-4 border-t text-[10px] text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V6.2 Final</span>
+          <span>V6.3 Final</span>
           <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}><Cloud size={10} /> {user ? 'Online' : 'Offline'}</span>
         </div>
       </nav>
