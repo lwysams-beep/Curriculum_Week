@@ -204,8 +204,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.1</span></h1>
-          <p className="text-slate-500 font-medium">Smart Exclusions Fix • Full Venue Classes</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.2</span></h1>
+          <p className="text-slate-500 font-medium">Larger Font • Clear View • Cloud Sync</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -975,19 +975,19 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                       return (
                         <div 
                           key={p} 
-                          className={`border-r last:border-r-0 min-h-[45px] p-0.5 relative cursor-pointer ${selectedClassInfo?.id === cls ? 'bg-indigo-50/30' : ''}`}
+                          className={`border-r last:border-r-0 min-h-[60px] p-0.5 relative cursor-pointer ${selectedClassInfo?.id === cls ? 'bg-indigo-50/30' : ''}`}
                           onClick={() => handleCellClick(cls)} 
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => handleDrop(e, cls, p)}
                         >
                           <div className="flex flex-wrap gap-0.5 content-start">
                             {slot.teachers.map((t: string, i: number) => (
-                              <div key={i} draggable onDragStart={(e) => { setDraggedTeacher({name:t, fromClass:cls, fromPeriod:p}); e.dataTransfer.effectAllowed="move"; }} className="cursor-grab active:cursor-grabbing px-1 h-4 flex items-center text-[9px] bg-white border border-slate-300 rounded shadow-sm hover:border-indigo-500 hover:text-indigo-600 whitespace-nowrap">
+                              <div key={i} draggable onDragStart={(e) => { setDraggedTeacher({name:t, fromClass:cls, fromPeriod:p}); e.dataTransfer.effectAllowed="move"; }} className="cursor-grab active:cursor-grabbing px-1.5 py-0.5 flex items-center text-xs bg-white border border-slate-300 rounded shadow-sm hover:border-indigo-500 hover:text-indigo-600 whitespace-nowrap">
                                 {t}
                               </div>
                             ))}
                           </div>
-                          <button onClick={(e) => {e.stopPropagation(); toggleSlotCapacity(cls, p)}} className="absolute bottom-0 right-0 w-3 h-3 bg-slate-200 hover:bg-slate-300 text-[8px] flex items-center justify-center rounded-tl text-slate-600 font-bold leading-none z-10">{slot.capacity}</button>
+                          <button onClick={(e) => {e.stopPropagation(); toggleSlotCapacity(cls, p)}} className="absolute bottom-0 right-0 w-4 h-4 bg-slate-200 hover:bg-slate-300 text-[9px] flex items-center justify-center rounded-tl text-slate-600 font-bold leading-none z-10">{slot.capacity}</button>
                         </div>
                       );
                     })}
@@ -1065,7 +1065,7 @@ const AppContent = () => {
           <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='ai-design'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Cpu size={18} /><span className="text-sm font-bold">AI 課程設計</span></button>
         </div>
         <div className="p-4 border-t text-[10px] text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V6.1 Final</span>
+          <span>V6.2 Final</span>
           <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}><Cloud size={10} /> {user ? 'Online' : 'Offline'}</span>
         </div>
       </nav>
