@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Calendar, 
   Users, 
@@ -204,8 +204,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.3</span></h1>
-          <p className="text-slate-500 font-medium">Smart Algo V3 • Undo Function • Layout Optimized</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.4</span></h1>
+          <p className="text-slate-500 font-medium">Export CSV • Exclusions Cloud Sync • Full Features</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -347,6 +347,36 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
       return { ...prev, [dayKey]: newDaySched };
     });
   };
+  
+  const handleExportCSV = () => {
+    const headers = ['Day', 'Venue', 'Period', 'Classes'];
+    const rows = [headers];
+    
+    // Iterate through all days in schedule state or just activeDay? Usually full export is better.
+    // Let's export current view (all days initialized)
+    for (let d = 1; d <= config.daysCount; d++) {
+        const dKey = `Day ${d}`;
+        if(schedule[dKey]) {
+             VENUES.forEach(v => {
+                 for(let p=1; p<=config.periodsCount; p++) {
+                     const classes = schedule[dKey][v]?.[p] || [];
+                     if(classes.length > 0) {
+                         rows.push([dKey, v, `Period ${p}`, classes.join('; ')]);
+                     }
+                 }
+             });
+        }
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `venue_allocation_${activeDay}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const availableClasses = ALL_CLASSES
     .filter(c => config.selectedGrades.includes('P'+c.charAt(0)))
@@ -354,12 +384,15 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
 
   return (
     <div className="flex h-full bg-slate-50 flex-col">
-       <div className="bg-white border-b px-4 py-2 flex items-center gap-2 shadow-sm">
-          <Filter size={16} className="text-slate-400 mr-2"/>
-          <button onClick={() => setActiveGradeFilter('ALL')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeGradeFilter==='ALL'?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>全部</button>
-          {STAFFING_LEVELS.map(lvl => (
-             <button key={lvl} onClick={() => setActiveGradeFilter(lvl)} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeGradeFilter===lvl?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{lvl}</button>
-          ))}
+       <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-slate-400 mr-2"/>
+            <button onClick={() => setActiveGradeFilter('ALL')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeGradeFilter==='ALL'?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>全部</button>
+            {STAFFING_LEVELS.map(lvl => (
+               <button key={lvl} onClick={() => setActiveGradeFilter(lvl)} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activeGradeFilter===lvl?'bg-indigo-600 text-white':'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{lvl}</button>
+            ))}
+          </div>
+          <button onClick={handleExportCSV} className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 text-white rounded text-xs font-bold hover:bg-black"><Download size={14}/> 匯出 CSV</button>
        </div>
 
        <div className="flex flex-1 overflow-hidden">
@@ -432,7 +465,7 @@ const AiDesignView = () => {
   );
 };
 
-// --- Staffing System (V6.3 Upgrade) ---
+// --- Staffing System (V6.4) ---
 const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [showConfig, setShowConfig] = useState(true);
   const [defaultCapacity, setDefaultCapacity] = useState(2); 
@@ -456,13 +489,11 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [activePoolPeriod, setActivePoolPeriod] = useState(1);
   const [autoExcludedReasons, setAutoExcludedReasons] = useState<any>({}); 
 
-  // V6.3: Undo History
+  // Undo History
   const [history, setHistory] = useState<any[]>([]);
 
-  // Function to save current state to history
   const saveHistory = () => {
     setHistory(prev => {
-      // Limit history stack size if needed (e.g., last 20 steps)
       const newHistory = [...prev, JSON.parse(JSON.stringify(schedule))]; 
       return newHistory.slice(-20); 
     });
@@ -502,22 +533,58 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     return () => { unsubT(); unsubS(); };
   }, [user, activeDay]);
 
+  // V6.4: Updated Save Logic to persist Exclusions
   const handleSaveToCloud = async () => {
     if (!isFirebaseReady || !db) return alert("Firebase 未連線");
     setIsSaving(true);
     try {
+      // 1. Save Schedule
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), {
         slots: schedule[activeDay] || [],
         updatedAt: new Date().toISOString()
       });
+      // 2. Save Settings
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), config);
-      alert("✅ 編配資料已安全儲存至雲端！");
+      
+      // 3. Save Exclusions (Important!)
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), {
+         excludedTeachers: excludedTeachers, // Persist manual changes
+      }, { merge: true });
+
+      alert("✅ 編配資料及排斥名單已儲存至雲端！");
     } catch (e) {
       console.error(e);
       alert("儲存失敗");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleExportCSV = () => {
+      const dayData = schedule[activeDay] || [];
+      const headers = ['Class', 'Period', 'Teachers', 'Target'];
+      const rows = [headers];
+      
+      // We need to iterate classes (filtered) and periods
+      const filteredClasses = ALL_CLASSES.filter(c => config.selectedGrades.includes('P'+c.charAt(0)));
+      
+      filteredClasses.forEach(cls => {
+          for(let p=1; p<=config.periodsCount; p++) {
+              const slot = dayData.find((s:any) => s.classId === cls && s.period === p);
+              if(slot && slot.teachers.length > 0) {
+                  rows.push([cls, `P${p}`, slot.teachers.join('; '), slot.capacity]);
+              }
+          }
+      });
+      
+      const csvContent = "\uFEFF" + rows.map(e => e.join(",")).join("\n"); // Add BOM for Excel
+      const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `staffing_schedule_${activeDay}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   const handleFileUpload = (e: any) => {
@@ -707,7 +774,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     setSelectedClassInfo({ id: cls, info });
   };
 
-  // V6.3: Advanced Smart Assign
   const handleAutoAssign = () => {
     if (!isDataLoaded && !window.confirm("尚未上載 CSV，將使用模擬數據。是否繼續？")) return;
     
@@ -735,7 +801,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         });
     });
 
-    // Helper: Is Teacher Available in this Slot?
     const isTeacherAvailable = (tName: string, slot: any) => {
         if (slot.teachers.includes(tName)) return false;
         const isBusy = dayAssignments.some((s: any) => s.period === slot.period && s.classId !== slot.classId && s.teachers.includes(tName));
@@ -770,20 +835,16 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     });
 
     // --- PHASE 2: Round Robin Filling (Underloaded Teachers) ---
-    // We need to fill remaining slots using teachers who are still under baseline
-    // Loop through slots again
     dayAssignments.forEach((slot: any) => {
        const needed = slot.capacity - slot.teachers.length;
        if (needed <= 0) return;
 
-       // Find candidates under baseline
        let candidates = availableTeachers.filter((t: string) => currentLoad[t] < baselineLoad && isTeacherAvailable(t, slot));
-       // Sort by load asc (least loaded first)
        candidates.sort((a: string, b: string) => currentLoad[a] - currentLoad[b]);
        
        for (let i = 0; i < needed; i++) {
            if (candidates.length > 0) {
-               const t = candidates.shift(); // Take best
+               const t = candidates.shift(); 
                slot.teachers.push(t);
                currentLoad[t]++;
            }
@@ -791,7 +852,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     });
 
     // --- PHASE 3: Overflow Filling (If still empty) ---
-    // 4. Class Head (Overflow)
     dayAssignments.forEach((slot: any) => {
         if (slot.teachers.length >= slot.capacity) return;
         const info = classTeacherInfo[slot.classId];
@@ -802,7 +862,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         }
     });
 
-    // 5. Least Loaded (Overflow)
     dayAssignments.forEach((slot: any) => {
         if (slot.teachers.length >= slot.capacity) return;
         
@@ -873,12 +932,12 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
            <button onClick={() => setShowStatsModal(true)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded text-xs font-bold hover:bg-slate-50"><BarChart size={14}/> 統計</button>
            <button onClick={handleAutoAssign} className={`flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 shadow-sm`}><Calculator size={14}/> 智能編配</button>
            <button onClick={handleSaveToCloud} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 shadow-sm"><Save size={14}/> {isSaving ? '儲存中...' : '儲存編配'}</button>
+           <button onClick={handleExportCSV} className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 text-white rounded text-xs font-bold hover:bg-black"><Download size={14}/> 匯出</button>
            <button onClick={handleClearDay} className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:bg-red-50 rounded text-xs font-bold"><Trash2 size={14}/></button>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar */}
         {showConfig && (
           <div className="w-72 bg-white border-r shadow-xl z-10 flex flex-col h-full overflow-y-auto">
              <div className="p-4 space-y-6">
@@ -1011,7 +1070,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                       return (
                         <div 
                           key={p} 
-                          className={`border-r last:border-r-0 min-h-[60px] p-0.5 relative cursor-pointer ${selectedClassInfo?.id === cls ? 'bg-indigo-50/30' : ''}`}
+                          className={`border-r last:border-r-0 min-h-[45px] p-0.5 relative cursor-pointer ${selectedClassInfo?.id === cls ? 'bg-indigo-50/30' : ''}`}
                           onClick={() => handleCellClick(cls)} 
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => handleDrop(e, cls, p)}
@@ -1101,7 +1160,7 @@ const AppContent = () => {
           <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='ai-design'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Cpu size={18} /><span className="text-sm font-bold">AI 課程設計</span></button>
         </div>
         <div className="p-4 border-t text-[10px] text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V6.3 Final</span>
+          <span>V6.4 Final</span>
           <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}><Cloud size={10} /> {user ? 'Online' : 'Offline'}</span>
         </div>
       </nav>
