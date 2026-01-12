@@ -204,8 +204,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.0</span></h1>
-          <p className="text-slate-500 font-medium">Smart Exclusions • Venue Filter • Dual CSV</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.1</span></h1>
+          <p className="text-slate-500 font-medium">Smart Exclusions Fix • Full Venue Classes</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -350,9 +350,8 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
     });
   };
 
-  // V6.0: Filter available classes by selected grade
+  // V6.1: Show ALL classes for Venue Allocation regardless of setup wizard config
   const availableClasses = ALL_CLASSES
-    .filter(c => config.selectedGrades.includes('P'+c.charAt(0)))
     .filter(c => activeGradeFilter === 'ALL' || c.startsWith(activeGradeFilter.replace('P','')));
 
   return (
@@ -512,27 +511,17 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     }
   };
 
-  // V6.0: Dual CSV Import Handler
+  // V6.1: Dual CSV Import Handler with LAOH Detection Fix
   const handleFileUpload = (e: any) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // We need to read potentially 2 files
-    // Let's read them sequentially or check names
-    // Simplification: We assume user uploads "总教師時間表" first or we just process the first file
-    // To support 2 files, we should ask user to upload them one by one or select multiple
-    // Let's support processing a single file based on content detection
-    
     const file = files[0];
     const reader = new FileReader();
 
     reader.onload = async (evt) => {
       const text = evt.target?.result as string;
       const lines = text.split('\n').filter((l: string) => l.trim());
-      
-      // Heuristic to detect file type
-      // Type A: Teachers List (Special Duties) -> has "姓名" or "特別活動"
-      // Type B: Schedule (Timetable) -> has "職位", "教師", "星期"
       
       const isTeacherListFile = lines[0].includes("姓名") || lines[0].includes("特別活動") || lines[1].includes("姓名");
       
@@ -544,13 +533,15 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
          
          // Start from row 2 (index 1)
          for (let i = 1; i < lines.length; i++) {
-            const cols = lines[i].split(',').map(c => c.trim().replace(/"/g, '')); // Remove quotes
+            const cols = lines[i].split(',').map((c: string) => c.trim().replace(/"/g, '')); // Remove quotes
             // Col B (Index 1): Special Activity
             // Col C (Index 2): Name
-            const activity = cols[1];
+            const activity = cols[1] || '';
             const name = cols[2];
 
-            if (name && (activity.includes("P.6 LAOH") || activity.includes("P.5LAOH") || activity.includes("LAOH"))) {
+            // V6.1: Fix logic for "P.6 LAOH" detection (ignore case and spacing)
+            const activityUpper = activity.toUpperCase().replace(/\s/g, '');
+            if (name && (activityUpper.includes("P.6LAOH") || activityUpper.includes("P.5LAOH") || activityUpper.includes("LAOH"))) {
                newExclusions.push(name);
                newReasons[name] = activity; // Store reason
             }
@@ -1074,7 +1065,7 @@ const AppContent = () => {
           <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='ai-design'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Cpu size={18} /><span className="text-sm font-bold">AI 課程設計</span></button>
         </div>
         <div className="p-4 border-t text-[10px] text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V6.0 Final</span>
+          <span>V6.1 Final</span>
           <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}><Cloud size={10} /> {user ? 'Online' : 'Offline'}</span>
         </div>
       </nav>
@@ -1107,5 +1098,5 @@ const App = () => {
     </ErrorBoundary>
   );
 };
-//new19
+
 export default App;
