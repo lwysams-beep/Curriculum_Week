@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Calendar, 
   Users, 
@@ -204,8 +204,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.4</span></h1>
-          <p className="text-slate-500 font-medium">Export CSV • Exclusions Cloud Sync • Full Features</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.5</span></h1>
+          <p className="text-slate-500 font-medium">Capacity Sync • Pool Highlight • Cloud Deep</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -352,8 +352,6 @@ const VenueAllocationSystem = ({ config, activeDay }: { config: any, activeDay: 
     const headers = ['Day', 'Venue', 'Period', 'Classes'];
     const rows = [headers];
     
-    // Iterate through all days in schedule state or just activeDay? Usually full export is better.
-    // Let's export current view (all days initialized)
     for (let d = 1; d <= config.daysCount; d++) {
         const dKey = `Day ${d}`;
         if(schedule[dKey]) {
@@ -465,7 +463,7 @@ const AiDesignView = () => {
   );
 };
 
-// --- Staffing System (V6.4) ---
+// --- Staffing System (V6.5) ---
 const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [showConfig, setShowConfig] = useState(true);
   const [defaultCapacity, setDefaultCapacity] = useState(2); 
@@ -533,12 +531,12 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     return () => { unsubT(); unsubS(); };
   }, [user, activeDay]);
 
-  // V6.4: Updated Save Logic to persist Exclusions
+  // V6.5: Save Capacity to Cloud
   const handleSaveToCloud = async () => {
     if (!isFirebaseReady || !db) return alert("Firebase 未連線");
     setIsSaving(true);
     try {
-      // 1. Save Schedule
+      // 1. Save Schedule (Includes teacher list AND capacity)
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), {
         slots: schedule[activeDay] || [],
         updatedAt: new Date().toISOString()
@@ -551,7 +549,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
          excludedTeachers: excludedTeachers, // Persist manual changes
       }, { merge: true });
 
-      alert("✅ 編配資料及排斥名單已儲存至雲端！");
+      alert("✅ 編配資料及人數設定已儲存至雲端！");
     } catch (e) {
       console.error(e);
       alert("儲存失敗");
@@ -565,7 +563,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       const headers = ['Class', 'Period', 'Teachers', 'Target'];
       const rows = [headers];
       
-      // We need to iterate classes (filtered) and periods
       const filteredClasses = ALL_CLASSES.filter(c => config.selectedGrades.includes('P'+c.charAt(0)));
       
       filteredClasses.forEach(cls => {
@@ -577,7 +574,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
           }
       });
       
-      const csvContent = "\uFEFF" + rows.map(e => e.join(",")).join("\n"); // Add BOM for Excel
+      const csvContent = "\uFEFF" + rows.map(e => e.join(",")).join("\n"); 
       const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
@@ -703,7 +700,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   }, [config, defaultCapacity, activeDay]);
 
   const handleCapacityChange = (newCap: number) => {
-    saveHistory(); // Save before change
+    saveHistory(); 
     setDefaultCapacity(newCap);
     setSchedule((prev: any) => {
       const currentSlots = prev[activeDay] || [];
@@ -713,7 +710,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   };
 
   const toggleSlotCapacity = (classId: string, period: number) => {
-    saveHistory(); // Save before change
+    saveHistory(); 
     setSchedule((prev: any) => {
       const dayData = [...(prev[activeDay] || [])];
       const idx = dayData.findIndex((s: any) => s.classId === classId && s.period === period);
@@ -729,7 +726,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     if (!draggedTeacher) return;
     const { name, fromClass, fromPeriod } = draggedTeacher;
     if (fromClass !== 'POOL') {
-       saveHistory(); // Save
+       saveHistory(); 
        setSchedule((prev: any) => {
           const dayData = [...(prev[activeDay] || [])];
           const srcIdx = dayData.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
@@ -751,15 +748,13 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const { name, fromClass, fromPeriod } = draggedTeacher;
     if (fromClass === targetClass && fromPeriod === targetPeriod) return;
     
-    saveHistory(); // Save
+    saveHistory(); 
     setSchedule((prev: any) => {
       const dayData = [...(prev[activeDay] || [])];
-      // Remove
       if (fromClass !== 'POOL') {
          const srcIdx = dayData.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
          if (srcIdx >= 0) dayData[srcIdx] = { ...dayData[srcIdx], teachers: dayData[srcIdx].teachers.filter((t: string) => t !== name) };
       }
-      // Add
       const tgtIdx = dayData.findIndex((s: any) => s.classId === targetClass && s.period === targetPeriod);
       if (tgtIdx >= 0 && !dayData[tgtIdx].teachers.includes(name)) {
         dayData[tgtIdx] = { ...dayData[tgtIdx], teachers: [...dayData[tgtIdx].teachers, name] };
@@ -777,7 +772,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const handleAutoAssign = () => {
     if (!isDataLoaded && !window.confirm("尚未上載 CSV，將使用模擬數據。是否繼續？")) return;
     
-    saveHistory(); // Save
+    saveHistory(); 
 
     const daySchedule = schedule[activeDay] || [];
     const totalSlotsNeeded = daySchedule.reduce((acc: any, slot: any) => acc + slot.capacity, 0);
@@ -792,7 +787,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     const newSchedule = { ...schedule };
     const dayAssignments = JSON.parse(JSON.stringify(newSchedule[activeDay] || [])); 
     
-    // Init Load Tracker
     const currentLoad: any = {};
     availableTeachers.forEach((t: string) => currentLoad[t] = 0);
     dayAssignments.forEach((slot: any) => {
@@ -807,7 +801,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
         return !isBusy;
     };
 
-    // --- PHASE 1: Priority Filling (Up to Baseline) ---
     dayAssignments.forEach((slot: any) => {
       const needed = slot.capacity - slot.teachers.length;
       if (needed <= 0) return;
@@ -816,13 +809,11 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       const classHead = info?.head;
       const subjects = info?.subjects?.map((s:any) => s.teacher) || [];
       
-      // 1. Class Head (Under Baseline)
       if (classHead && isTeacherAvailable(classHead, slot) && currentLoad[classHead] < baselineLoad && slot.teachers.length < slot.capacity) {
            slot.teachers.push(classHead);
            currentLoad[classHead]++;
       }
       
-      // 2. Subject Teachers (Under Baseline)
       if (slot.teachers.length < slot.capacity) {
          for (const t of subjects) {
              if (isTeacherAvailable(t, slot) && currentLoad[t] < baselineLoad && slot.teachers.length < slot.capacity) {
@@ -834,7 +825,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       }
     });
 
-    // --- PHASE 2: Round Robin Filling (Underloaded Teachers) ---
     dayAssignments.forEach((slot: any) => {
        const needed = slot.capacity - slot.teachers.length;
        if (needed <= 0) return;
@@ -851,7 +841,6 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
        }
     });
 
-    // --- PHASE 3: Overflow Filling (If still empty) ---
     dayAssignments.forEach((slot: any) => {
         if (slot.teachers.length >= slot.capacity) return;
         const info = classTeacherInfo[slot.classId];
@@ -905,14 +894,24 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     return data.sort((a, b) => b.current - a.current);
   }, [schedule, activeDay, teacherList, isDataLoaded]);
 
+  // V6.5: Smart Pool - Highlight subject teachers for selected class
   const poolTeachers = useMemo(() => {
     if (!isDataLoaded) return [];
     const currentAssignments = schedule[activeDay] || [];
+    
+    // Get subject teachers of the selected class
+    const relevantTeachers = selectedClassInfo ? 
+       [selectedClassInfo.info.head, ...selectedClassInfo.info.subjects.map((s:any)=>s.teacher)] 
+       : [];
+
     return teacherList.filter(t => 
       !excludedTeachers.includes(t) &&
       !currentAssignments.some((s: any) => s.period === activePoolPeriod && s.teachers.includes(t))
-    );
-  }, [schedule, activeDay, activePoolPeriod, teacherList, excludedTeachers, isDataLoaded]);
+    ).map(t => ({
+      name: t,
+      isRelevant: relevantTeachers.includes(t)
+    })).sort((a, b) => (b.isRelevant ? 1 : 0) - (a.isRelevant ? 1 : 0)); // Sort relevant first
+  }, [schedule, activeDay, activePoolPeriod, teacherList, excludedTeachers, isDataLoaded, selectedClassInfo]);
 
   const filteredClasses = ALL_CLASSES.filter(c => config.selectedGrades.includes('P'+c.charAt(0)));
 
@@ -938,6 +937,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar */}
         {showConfig && (
           <div className="w-72 bg-white border-r shadow-xl z-10 flex flex-col h-full overflow-y-auto">
              <div className="p-4 space-y-6">
@@ -971,9 +971,14 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                   >
                      {poolTeachers.length > 0 ? (
                        <div className="flex flex-wrap gap-1">
-                         {poolTeachers.map(t => (
-                           <div key={t} draggable onDragStart={(e) => { setDraggedTeacher({name:t, fromClass:'POOL', fromPeriod:activePoolPeriod}); e.dataTransfer.effectAllowed="move"; }} className="px-2 py-1 bg-white border border-slate-300 rounded text-[10px] shadow-sm cursor-grab hover:border-indigo-500 hover:text-indigo-600 select-none">
-                             {t}
+                         {poolTeachers.map((tObj: any) => (
+                           <div 
+                             key={tObj.name} 
+                             draggable 
+                             onDragStart={(e) => { setDraggedTeacher({name:tObj.name, fromClass:'POOL', fromPeriod:activePoolPeriod}); e.dataTransfer.effectAllowed="move"; }} 
+                             className={`px-2 py-1 border rounded text-[10px] shadow-sm cursor-grab select-none transition-all ${tObj.isRelevant ? 'bg-indigo-600 text-white border-indigo-700 font-bold scale-105' : 'bg-white border-slate-300 hover:border-indigo-500 hover:text-indigo-600'}`}
+                           >
+                             {tObj.name}
                            </div>
                          ))}
                        </div>
@@ -1160,7 +1165,7 @@ const AppContent = () => {
           <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='ai-design'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Cpu size={18} /><span className="text-sm font-bold">AI 課程設計</span></button>
         </div>
         <div className="p-4 border-t text-[10px] text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V6.4 Final</span>
+          <span>V6.5 Final</span>
           <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}><Cloud size={10} /> {user ? 'Online' : 'Offline'}</span>
         </div>
       </nav>
