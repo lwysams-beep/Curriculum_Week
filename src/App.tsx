@@ -204,8 +204,8 @@ const SetupWizard = ({ onComplete }: { onComplete: (config: any) => void }) => {
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 p-8 md:p-12 flex flex-col animate-fadeIn">
         <div className="mb-10 text-center">
           <div className="inline-block bg-indigo-600 p-4 rounded-2xl mb-4 shadow-lg shadow-indigo-200"><Brain size={48} className="text-white" /></div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.5</span></h1>
-          <p className="text-slate-500 font-medium">Capacity Sync • Pool Highlight • Cloud Deep</p>
+          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">課程指揮中心 <span className="text-indigo-600">V6.6</span></h1>
+          <p className="text-slate-500 font-medium">Smart Pool Sync • Undo Function • Cloud Deep</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
@@ -463,7 +463,7 @@ const AiDesignView = () => {
   );
 };
 
-// --- Staffing System (V6.5) ---
+// --- Staffing System (V6.6) ---
 const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [showConfig, setShowConfig] = useState(true);
   const [defaultCapacity, setDefaultCapacity] = useState(2); 
@@ -486,6 +486,9 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
   const [jobTargets, setJobTargets] = useState<any>({ '副校長': 1, '主任': 3 });
   const [activePoolPeriod, setActivePoolPeriod] = useState(1);
   const [autoExcludedReasons, setAutoExcludedReasons] = useState<any>({}); 
+  
+  // V6.6: Selection State for highlighting cell
+  const [activeCell, setActiveCell] = useState<{classId: string, period: number} | null>(null);
 
   // Undo History
   const [history, setHistory] = useState<any[]>([]);
@@ -531,25 +534,21 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     return () => { unsubT(); unsubS(); };
   }, [user, activeDay]);
 
-  // V6.5: Save Capacity to Cloud
+  // V6.5: Updated Save Logic to persist Exclusions
   const handleSaveToCloud = async () => {
     if (!isFirebaseReady || !db) return alert("Firebase 未連線");
     setIsSaving(true);
     try {
-      // 1. Save Schedule (Includes teacher list AND capacity)
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schedules', activeDay), {
         slots: schedule[activeDay] || [],
         updatedAt: new Date().toISOString()
       });
-      // 2. Save Settings
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), config);
-      
-      // 3. Save Exclusions (Important!)
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', 'main_list'), {
-         excludedTeachers: excludedTeachers, // Persist manual changes
+         excludedTeachers: excludedTeachers, 
       }, { merge: true });
 
-      alert("✅ 編配資料及人數設定已儲存至雲端！");
+      alert("✅ 編配資料及排斥名單已儲存至雲端！");
     } catch (e) {
       console.error(e);
       alert("儲存失敗");
@@ -751,10 +750,12 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     saveHistory(); 
     setSchedule((prev: any) => {
       const dayData = [...(prev[activeDay] || [])];
+      // Remove
       if (fromClass !== 'POOL') {
          const srcIdx = dayData.findIndex((s: any) => s.classId === fromClass && s.period === fromPeriod);
          if (srcIdx >= 0) dayData[srcIdx] = { ...dayData[srcIdx], teachers: dayData[srcIdx].teachers.filter((t: string) => t !== name) };
       }
+      // Add
       const tgtIdx = dayData.findIndex((s: any) => s.classId === targetClass && s.period === targetPeriod);
       if (tgtIdx >= 0 && !dayData[tgtIdx].teachers.includes(name)) {
         dayData[tgtIdx] = { ...dayData[tgtIdx], teachers: [...dayData[tgtIdx].teachers, name] };
@@ -764,9 +765,12 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     setDraggedTeacher(null);
   };
 
-  const handleCellClick = (cls: string) => {
+  const handleCellClick = (cls: string, period: number) => {
     const info = classTeacherInfo[cls] || { head: '-', subjects: [] };
     setSelectedClassInfo({ id: cls, info });
+    // V6.6: Sync Pool Period and Highlight Cell
+    setActivePoolPeriod(period);
+    setActiveCell({ classId: cls, period: period });
   };
 
   const handleAutoAssign = () => {
@@ -894,7 +898,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
     return data.sort((a, b) => b.current - a.current);
   }, [schedule, activeDay, teacherList, isDataLoaded]);
 
-  // V6.5: Smart Pool - Highlight subject teachers for selected class
+  // V6.5 Smart Pool
   const poolTeachers = useMemo(() => {
     if (!isDataLoaded) return [];
     const currentAssignments = schedule[activeDay] || [];
@@ -931,7 +935,7 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
            <button onClick={() => setShowStatsModal(true)} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded text-xs font-bold hover:bg-slate-50"><BarChart size={14}/> 統計</button>
            <button onClick={handleAutoAssign} className={`flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 shadow-sm`}><Calculator size={14}/> 智能編配</button>
            <button onClick={handleSaveToCloud} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 shadow-sm"><Save size={14}/> {isSaving ? '儲存中...' : '儲存編配'}</button>
-           <button onClick={handleExportCSV} className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 text-white rounded text-xs font-bold hover:bg-black"><Download size={14}/> 匯出</button>
+           <button onClick={handleExportCSV} className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 text-white rounded text-xs font-bold hover:bg-black"><Download size={14}/> 匯出 CSV</button>
            <button onClick={handleClearDay} className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:bg-red-50 rounded text-xs font-bold"><Trash2 size={14}/></button>
         </div>
       </div>
@@ -1029,174 +1033,4 @@ const StaffingSystem = ({ config, activeDay, setActiveDay, user }: any) => {
                      </div>
                    )}
                    <div>
-                     <label className="text-[10px] font-bold text-slate-400 mb-1 block uppercase">預設人手 (即時)</label>
-                     <div className="flex items-center gap-2">
-                       <input type="range" min="1" max="4" step="1" value={defaultCapacity} onChange={(e: any) => handleCapacityChange(parseInt(e.target.value))} className="flex-1 accent-indigo-600 h-1.5 bg-slate-200 rounded-lg"/>
-                       <span className="text-sm font-bold text-indigo-600">{defaultCapacity}</span>
-                     </div>
-                   </div>
-                </div>
-
-                {/* 5. Exclusions */}
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 mb-2 block uppercase flex items-center gap-1"><UserX size={12}/> 不可編堂名單 ({excludedTeachers.length})</label>
-                  <div className="max-h-32 overflow-y-auto border rounded p-1 bg-slate-50">
-                    {teacherList.map(t => (
-                      <div key={t} onClick={() => toggleExcluded(t)} className={`flex items-center gap-2 px-2 py-1 cursor-pointer text-[10px] ${excludedTeachers.includes(t) ? 'text-red-500 font-bold bg-red-50' : 'text-slate-600 hover:bg-slate-100'}`}>
-                         <div className={`w-3 h-3 rounded border flex items-center justify-center ${excludedTeachers.includes(t)?'bg-red-500 border-red-500':'bg-white'}`}>{excludedTeachers.includes(t) && <X size={8} className="text-white"/>}</div>
-                         <div className="flex-1 truncate">
-                           {t}
-                           {autoExcludedReasons[t] && <span className="text-[8px] text-red-400 ml-1">({autoExcludedReasons[t]})</span>}
-                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-             </div>
-          </div>
-        )}
-
-        <div className="flex-1 flex flex-col overflow-hidden bg-slate-100/50">
-          <div className="flex-1 overflow-auto p-4">
-            <div className="bg-white rounded shadow-sm border border-slate-300 min-w-[800px]">
-              <div className="grid bg-slate-50 border-b sticky top-0 z-10" style={{ gridTemplateColumns: `60px repeat(${config.periodsCount}, 1fr)` }}>
-                <div className="p-2 text-center text-[10px] font-bold text-slate-500 border-r">班別</div>
-                {Array.from({length: config.periodsCount}, (_, i) => i+1).map(p => (
-                  <div key={p} onClick={() => setActivePoolPeriod(p)} className={`p-2 text-center border-r last:border-r-0 text-[10px] font-bold cursor-pointer hover:bg-indigo-50 ${activePoolPeriod===p ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500'}`}>第 {p} 節</div>
-                ))}
-              </div>
-              <div className="divide-y divide-slate-200">
-                {filteredClasses.map(cls => (
-                  <div key={cls} className="grid hover:bg-slate-50 transition-colors group" style={{ gridTemplateColumns: `60px repeat(${config.periodsCount}, 1fr)` }}>
-                    <div className="p-1 font-bold text-slate-700 border-r flex items-center justify-center bg-slate-100/50 text-sm">{cls}</div>
-                    {Array.from({length: config.periodsCount}, (_, i) => i+1).map(p => {
-                      const slot = schedule[activeDay]?.find((s: any) => s.classId === cls && s.period === p);
-                      if (!slot) return <div key={p} className="border-r bg-slate-100/20"></div>;
-                      return (
-                        <div 
-                          key={p} 
-                          className={`border-r last:border-r-0 min-h-[45px] p-0.5 relative cursor-pointer ${selectedClassInfo?.id === cls ? 'bg-indigo-50/30' : ''}`}
-                          onClick={() => handleCellClick(cls)} 
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={(e) => handleDrop(e, cls, p)}
-                        >
-                          <div className="flex flex-wrap gap-0.5 content-start">
-                            {slot.teachers.map((t: string, i: number) => (
-                              <div key={i} draggable onDragStart={(e) => { setDraggedTeacher({name:t, fromClass:cls, fromPeriod:p}); e.dataTransfer.effectAllowed="move"; }} className="cursor-grab active:cursor-grabbing px-1.5 py-0.5 flex items-center text-xs bg-white border border-slate-300 rounded shadow-sm hover:border-indigo-500 hover:text-indigo-600 whitespace-nowrap">
-                                {t}
-                              </div>
-                            ))}
-                          </div>
-                          <button onClick={(e) => {e.stopPropagation(); toggleSlotCapacity(cls, p)}} className="absolute bottom-0 right-0 w-4 h-4 bg-slate-200 hover:bg-slate-300 text-[9px] flex items-center justify-center rounded-tl text-slate-600 font-bold leading-none z-10">{slot.capacity}</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {showStatsModal && (
-        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden animate-scaleIn">
-            <div className="p-6 border-b flex justify-between items-center bg-slate-50">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3"><BarChart className="text-indigo-600" /> 人手編配統計 (複合圖表)</h2>
-              </div>
-              <button onClick={() => setShowStatsModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24} className="text-slate-500" /></button>
-            </div>
-            <div className="flex-1 p-8 overflow-hidden flex flex-col">
-              <div className="flex-1 min-h-0 border border-slate-100 rounded-xl bg-slate-50/50 p-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartBar data={statsData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }} barGap={2}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} tick={{fontSize: 10, fill: '#64748b'}} height={80}/>
-                    <YAxis tick={{fontSize: 12, fill: '#64748b'}} />
-                    <Tooltip cursor={{fill: 'rgba(99, 102, 241, 0.05)'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}/>
-                    <Legend verticalAlign="top" height={36}/>
-                    <Bar dataKey="baseline" name="建議上限 (Target)" fill="#cbd5e1" radius={[4, 4, 4, 4]} barSize={12} />
-                    <Bar dataKey="current" name="實際編配 (Current)" fill="#4f46e5" radius={[4, 4, 4, 4]} barSize={12}>
-                       {statsData.map((entry: any, index: number) => (
-                         <Cell key={`cell-${index}`} fill={entry.current > entry.baseline + 2 ? '#ef4444' : (entry.current < entry.baseline - 2 ? '#f59e0b' : '#4f46e5')} />
-                       ))}
-                    </Bar>
-                  </RechartBar>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const AppContent = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isSystemStarted, setIsSystemStarted] = useState(false);
-  const [sysConfig, setSysConfig] = useState<any>(null);
-  const [activeDay, setActiveDay] = useState('Day 1');
-  const user = useAuth();
-
-  const handleWizardComplete = (config: any) => {
-    setSysConfig(config);
-    setIsSystemStarted(true);
-  };
-
-  if (!isSystemStarted) {
-    return <SetupWizard onComplete={handleWizardComplete} />;
-  }
-
-  return (
-    <div className="h-screen bg-slate-50 font-sans text-slate-900 flex overflow-hidden">
-      <nav className={`${isSidebarOpen ? 'w-56' : 'w-0'} bg-white border-r flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col relative z-30`}>
-        <div className="p-4 border-b flex items-center gap-2 bg-indigo-900 text-white h-16">
-          <Brain className="flex-shrink-0" />
-          <span className="font-bold truncate">課程指揮中心</span>
-        </div>
-        <div className="flex-1 overflow-y-auto py-4 space-y-1">
-          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='dashboard'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Layout size={18} /><span className="text-sm font-bold">總覽儀表板</span></button>
-          <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='staff'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Users size={18} /><span className="text-sm font-bold">人手分配</span></button>
-          <button onClick={() => setActiveTab('venue')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='venue'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><MapPin size={18} /><span className="text-sm font-bold">地點分配</span></button>
-          <button onClick={() => setActiveTab('ai-design')} className={`w-full flex items-center gap-3 px-6 py-3 hover:bg-slate-50 text-slate-600 ${activeTab==='ai-design'?'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-600':''}`}><Cpu size={18} /><span className="text-sm font-bold">AI 課程設計</span></button>
-        </div>
-        <div className="p-4 border-t text-[10px] text-slate-400 text-center flex flex-col items-center gap-1">
-          <span>V6.5 Final</span>
-          <span className={`flex items-center gap-1 ${user ? 'text-green-500' : 'text-slate-300'}`}><Cloud size={10} /> {user ? 'Online' : 'Offline'}</span>
-        </div>
-      </nav>
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        <header className="bg-white h-16 border-b px-4 flex items-center justify-between shadow-sm z-20 flex-shrink-0">
-           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600"><Menu size={20} /></button>
-            <h1 className="text-lg font-bold text-slate-800 truncate">{activeTab === 'dashboard' ? '總覽儀表板' : activeTab === 'staff' ? '智能人手編配系統' : activeTab === 'venue' ? '地點分配' : 'AI 課程設計'}</h1>
-           </div>
-           <div className="flex items-center gap-3">
-             <div className="bg-slate-100 p-1 rounded-lg flex items-center"><span className="text-xs font-bold text-slate-400 px-2 uppercase">Global Day:</span><select value={activeDay} onChange={(e) => setActiveDay(e.target.value)} className="bg-transparent text-sm font-bold text-indigo-700 outline-none">{Array.from({length: sysConfig.daysCount}, (_, i) => `Day ${i+1}`).map((d: any) => <option key={d} value={d}>{d}</option>)}</select></div>
-             <div className="w-8 h-8 bg-indigo-900 rounded-full flex items-center justify-center text-white text-xs font-bold">陳</div>
-           </div>
-        </header>
-        <div className="flex-1 overflow-hidden relative bg-slate-50">
-          {activeTab === 'dashboard' && <DashboardView config={sysConfig} />}
-          {activeTab === 'staff' && <StaffingSystem config={sysConfig} activeDay={activeDay} setActiveDay={setActiveDay} user={user} />}
-          {activeTab === 'venue' && <VenueAllocationSystem config={sysConfig} activeDay={activeDay} />}
-          {activeTab === 'ai-design' && <AiDesignView />}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const App = () => {
-  return (
-    <ErrorBoundary>
-       <AppContent />
-    </ErrorBoundary>
-  );
-};
-
-export default App;
+                     <label className="text-[10px] font-bold text-slate-400 mb
